@@ -24,6 +24,12 @@ import { ProductPage } from "@/components/product/ProductPage";
 import { AddressAutocomplete } from "@/components/sell/AddressAutocomplete";
 import { GOOGLE_REVIEWS_URL } from "./mediaSections";
 import { ErrorBoundary } from "./ErrorBoundary";
+import OfferModal from "@/components/offers/OfferModal";
+import { BuyingDashboard } from "@/components/dashboards/BuyingDashboard";
+import { SellingDashboard } from "@/components/dashboards/SellingDashboard";
+import { CheckoutPage } from "@/components/checkout/CheckoutPage";
+import { OrderTracking } from "@/components/orders/OrderTracking";
+import { submitListing, previewPayout } from "@/lib/createListing";
 
 const LEARN_VIDEOS = [
   { title: "What is Commonplace", blurb: "The whole process, start to finish.", id: "QZAyLOrvRBk", accent: "var(--maroon)", g1: "#efe4d5", g2: "#e6dac9" },
@@ -34,7 +40,7 @@ const LEARN_VIDEOS = [
 
 const LOGO = "/design-assets/805cd68e-4bc0-474c-9062-282704b82b24.svg";
 
-type View = "browse" | "category" | "buying" | "selling" | "product" | "account" | "search" | "cart" | "info";
+type View = "browse" | "category" | "buying" | "selling" | "product" | "account" | "search" | "cart" | "info" | "checkout" | "track";
 
 // Root CSS custom properties, ported verbatim from the design wrapper (the
 // canvas-scaling hacks — zoom/125vw/125vh — are dropped so it renders 1:1).
@@ -48,6 +54,8 @@ export function MarketplaceApp() {
   const [searchQuery, setSearchQuery] = useState("");
   const [infoSlug, setInfoSlug] = useState<string | null>(null);
   const [videoId, setVideoId] = useState<string | null>(null);
+  const [offerOpen, setOfferOpen] = useState(false);
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const cart = useCart();
   const [menuOpen, setMenuOpen] = useState(false);
   const [locOpen, setLocOpen] = useState(false);
@@ -80,7 +88,7 @@ export function MarketplaceApp() {
     setInfoSlug(slug);
     setView("info");
   }
-  const showSidebar = view !== "account" && view !== "cart" && view !== "info";
+  const showSidebar = !["account", "cart", "info", "checkout", "track"].includes(view);
   function toggleCond(key: string) {
     setConds((prev) => {
       const next = new Set(prev);
@@ -165,12 +173,12 @@ export function MarketplaceApp() {
               icon={<><path d="M6 8h12l-1 12H7L6 8Z" /><path d="M9 8V6a3 3 0 0 1 6 0v2" /></>} />
             <NavRow active={view === "selling"} onClick={() => setView("selling")} label="Selling" chevron border accent="var(--green)"
               icon={<><path d="M3 12 12 3h8v8l-9 9-8-8Z" /><circle cx="16" cy="8" r="1.4" /></>} />
-            <a href="https://trycommonplace.com/track" target="_blank" style={css("display:flex;align-items:center;gap:10px;padding:9px 11px;cursor:pointer;border-top:1px solid var(--line)")}>
+            <div onClick={() => setView("track")} style={css("display:flex;align-items:center;gap:10px;padding:9px 11px;cursor:pointer;border-top:1px solid var(--line)")}>
               <span style={css("width:29px;height:29px;border-radius:8px;flex:0 0 auto;background:color-mix(in srgb,var(--gold) 15%,white);color:var(--gold);display:flex;align-items:center;justify-content:center")}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9}><rect x="4" y="4" width="16" height="16" rx="2.5" /><path d="M8 9h8M8 13h8M8 17h5" /></svg>
               </span>
               <span style={css("font-size:15px;font-weight:600")}>Track order</span>
-            </a>
+            </div>
             <div onClick={() => setLocOpen(true)} style={css("display:flex;align-items:center;gap:10px;padding:9px 11px;cursor:pointer;border-top:1px solid var(--line)")}>
               <span style={css("width:29px;height:29px;border-radius:8px;flex:0 0 auto;background:var(--tint);color:var(--maroon);display:flex;align-items:center;justify-content:center")}><Pin /></span>
               <div style={css("flex:1;min-width:0")}>
@@ -333,12 +341,14 @@ export function MarketplaceApp() {
           <ErrorBoundary onReset={goBrowse}>
             {view === "browse" && <BrowseView locCity={locCity} onOpenProduct={openProduct} />}
             {view === "category" && category && <CategoryView catName={category.name} categorySlug={category.slug} onOpenProduct={openProduct} />}
-            {view === "buying" && <BuyingView onBrowse={goBrowse} />}
-            {view === "selling" && <SellingView onBrowse={goBrowse} onNew={() => setCreateOpen(true)} />}
-            {view === "product" && product && <ProductPage item={product} onBack={goBrowse} onOpenCategory={(slug, name) => openCategory({ name, slug })} onMakeOffer={() => setCreateOpen(true)} />}
+            {view === "buying" && <BuyingDashboard onBrowse={goBrowse} />}
+            {view === "selling" && <SellingDashboard onBrowse={goBrowse} onNew={() => setCreateOpen(true)} />}
+            {view === "product" && product && <ProductPage item={product} onBack={goBrowse} onOpenCategory={(slug, name) => openCategory({ name, slug })} onMakeOffer={() => setOfferOpen(true)} />}
             {view === "search" && <SearchPage initialQuery={searchQuery} onOpenProduct={openProduct} />}
             {view === "account" && <AccountPage onBack={goBrowse} />}
-            {view === "cart" && <CartPage onBrowse={goBrowse} onCheckout={() => {}} onOpenProduct={openProduct} />}
+            {view === "cart" && <CartPage onBrowse={goBrowse} onCheckout={() => setView("checkout")} onOpenProduct={openProduct} />}
+            {view === "checkout" && <CheckoutPage onBack={() => setView("cart")} onBrowse={goBrowse} onViewOrder={(id) => { setActiveOrderId(id); setView("track"); }} />}
+            {view === "track" && <OrderTracking orderId={activeOrderId ?? undefined} onBack={goBrowse} onBrowse={goBrowse} />}
             {view === "info" && infoSlug && <InfoView slug={infoSlug} />}
           </ErrorBoundary>
         </main>
@@ -347,6 +357,7 @@ export function MarketplaceApp() {
       {/* ============================ MODALS ============================ */}
       {locOpen && <LocationModal city={locCity} onCity={setLocCity} onClose={() => setLocOpen(false)} />}
       {createOpen && <CreateModal onClose={() => setCreateOpen(false)} />}
+      {product && <OfferModal listing={product} open={offerOpen} onClose={() => setOfferOpen(false)} />}
       {videoId && <VideoLightbox id={videoId} onClose={() => setVideoId(null)} />}
       <ConciergeChat open={chatOpen} onToggle={() => setChatOpen((v) => !v)} />
     </div>
@@ -567,105 +578,6 @@ function CategoryView({ catName, categorySlug, onOpenProduct }: { catName: strin
   );
 }
 
-/* ------------------------------- Buying view ------------------------------- */
-const BUYING_OFFERS = [
-  { title: "Peloton Bike+ with Shoes", offer: "$1,150", list: "$1,295", when: "2h ago", status: "Countered", action: "View counter", actionable: true, stBg: "var(--yellowBg)", stColor: "var(--gold)" },
-  { title: "Sole E95 Elliptical Trainer", offer: "$700", list: "$749", when: "1d ago", status: "Accepted", action: "", actionable: false, stBg: "var(--greenBg)", stColor: "var(--green)" },
-  { title: "Yamaha U1 Upright Piano", offer: "$3,500", list: "$3,799", when: "3d ago", status: "Pending", action: "", actionable: false, stBg: "var(--blueBg)", stColor: "var(--blueInk)" },
-  { title: "West Elm Harmony Sofa", offer: "$820", list: "$899", when: "5d ago", status: "Declined", action: "", actionable: false, stBg: "#F1E7E4", stColor: "var(--red)" },
-];
-function BuyingView({ onBrowse }: { onBrowse: () => void }) {
-  return (
-    <div style={css("max-width:960px")}>
-      <div style={css("display:flex;align-items:center;gap:10px;margin-bottom:4px")}>
-        <a onClick={onBrowse} style={css("color:var(--blueInk);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px")}><ChevronLeft stroke="currentColor" />Browse</a>
-        <span style={css("color:var(--muted);font-size:14px")}>/ Buying</span>
-      </div>
-      <h2 style={css("font-family:'Newsreader',serif;font-size:30px;font-weight:500;letter-spacing:-.4px;margin-bottom:2px")}>Your buying activity</h2>
-      <p style={css("color:var(--muted);font-size:14px;margin-bottom:22px")}>Offers you&apos;ve placed, questions you&apos;ve asked, and items on the way.</p>
-      <div style={css("display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:26px")}>
-        {[["4", "Active offers", "var(--ink)"], ["1", "Accepted", "var(--green)"], ["2", "Arriving soon", "var(--ink)"]].map(([n, l, c]) => (
-          <div key={l} style={css("background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px")}>
-            <div style={sx("font-size:28px;font-weight:800;letter-spacing:-.5px", { color: c })}>{n}</div>
-            <div style={css("font-size:13px;color:var(--muted)")}>{l}</div>
-          </div>
-        ))}
-      </div>
-      <h3 style={css("font-size:19px;font-weight:800;margin-bottom:12px")}>Your offers</h3>
-      <div style={css("display:flex;flex-direction:column;gap:11px;margin-bottom:30px")}>
-        {BUYING_OFFERS.map((o) => (
-          <div key={o.title} style={css("display:flex;align-items:center;gap:14px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px")}>
-            <div style={css("width:60px;height:60px;flex:0 0 auto;border-radius:9px;background:repeating-linear-gradient(135deg,#EDE4D6 0 10px,#E5DACA 10px 20px)")} />
-            <div style={css("flex:1;min-width:0")}>
-              <div style={css("font-size:14.5px;font-weight:600;line-height:1.3")}>{o.title}</div>
-              <div style={css("font-size:12.5px;color:var(--muted);margin-top:2px")}>Your offer <b style={css("color:var(--ink)")}>{o.offer}</b> · list {o.list} · {o.when}</div>
-            </div>
-            <div style={css("display:flex;flex-direction:column;align-items:flex-end;gap:6px")}>
-              <span style={sx("font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px", { background: o.stBg, color: o.stColor })}>{o.status}</span>
-              {o.actionable && <span style={css("font-size:12px;font-weight:700;color:var(--blueInk);cursor:pointer")}>{o.action}</span>}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------- Selling view ------------------------------- */
-const SELLING_OFFERS = [
-  { initial: "R", avBg: "var(--maroon)", buyer: "Ryan M.", offer: "$1,150", item: "Peloton Bike+", list: "$1,295", when: "2h ago", pending: true },
-  { initial: "T", avBg: "var(--blueInk)", buyer: "Tara S.", offer: "$820", item: "West Elm Sofa", list: "$899", when: "6h ago", pending: true },
-  { initial: "K", avBg: "var(--green)", buyer: "Kevin D.", offer: "$700", item: "Sole E95", list: "$749", when: "1d ago", pending: false, status: "Accepted", stBg: "var(--greenBg)", stColor: "var(--green)" },
-];
-function SellingView({ onBrowse, onNew }: { onBrowse: () => void; onNew: () => void }) {
-  return (
-    <div style={css("max-width:960px")}>
-      <div style={css("display:flex;align-items:center;gap:10px;margin-bottom:4px")}>
-        <a onClick={onBrowse} style={css("color:var(--blueInk);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px")}><ChevronLeft stroke="currentColor" />Browse</a>
-        <span style={css("color:var(--muted);font-size:14px")}>/ Selling</span>
-      </div>
-      <div style={css("display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:22px")}>
-        <div>
-          <h2 style={css("font-family:'Newsreader',serif;font-size:30px;font-weight:500;letter-spacing:-.4px;margin-bottom:2px")}>Your seller dashboard</h2>
-          <p style={css("color:var(--muted);font-size:14px")}>Manage listings, review offers, track orders, and answer buyer questions.</p>
-        </div>
-        <button onClick={onNew} style={css("background:var(--blueInk);color:#fff;border:none;border-radius:9px;padding:11px 18px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:7px")}>
-          <Plus size={16} />New listing
-        </button>
-      </div>
-      <div style={css("display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:26px")}>
-        {[["3", "Active listings", "var(--ink)"], ["4", "New offers", "var(--blueInk)"], ["680", "Total views", "var(--ink)"], ["$1,092", "Paid out", "var(--green)"]].map(([n, l, c]) => (
-          <div key={l} style={css("background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px")}>
-            <div style={sx("font-size:26px;font-weight:800;letter-spacing:-.5px", { color: c })}>{n}</div>
-            <div style={css("font-size:12.5px;color:var(--muted)")}>{l}</div>
-          </div>
-        ))}
-      </div>
-      <h3 style={css("font-size:19px;font-weight:800;margin-bottom:2px")}>Offers on your listings</h3>
-      <p style={css("color:var(--muted);font-size:13px;margin-bottom:12px")}>You have 24 hours to accept, counter, or decline each offer.</p>
-      <div style={css("display:flex;flex-direction:column;gap:11px")}>
-        {SELLING_OFFERS.map((o) => (
-          <div key={o.buyer} style={css("display:flex;align-items:center;gap:14px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px")}>
-            <div style={sx("width:44px;height:44px;flex:0 0 auto;border-radius:50%;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:15px", { background: o.avBg })}>{o.initial}</div>
-            <div style={css("flex:1;min-width:0")}>
-              <div style={css("font-size:14px;line-height:1.3")}><b>{o.buyer}</b> offered <b style={css("color:var(--blueInk)")}>{o.offer}</b></div>
-              <div style={css("font-size:12.5px;color:var(--muted);margin-top:2px")}>{o.item} · list {o.list} · {o.when}</div>
-            </div>
-            {o.pending ? (
-              <div style={css("display:flex;gap:7px")}>
-                <button style={css("border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:8px;padding:8px 13px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>Decline</button>
-                <button style={css("border:1px solid var(--blueInk);background:#fff;color:var(--blueInk);border-radius:8px;padding:8px 13px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>Counter</button>
-                <button style={css("border:none;background:var(--blueInk);color:#fff;border-radius:8px;padding:8px 15px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit")}>Accept</button>
-              </div>
-            ) : (
-              <span style={sx("font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px", { background: o.stBg, color: o.stColor })}>{o.status}</span>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 
 /* ------------------------------- Info page view ------------------------------- */
@@ -719,12 +631,44 @@ function CreateModal({ onClose }: { onClose: () => void }) {
   const [origPrice, setOrigPrice] = useState("");
   const [floorPrice, setFloorPrice] = useState("");
   const [pickup, setPickup] = useState("");
+  const [price, setPrice] = useState("");
+  const [title, setTitle] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
 
   const matched = CAT_GROUPS.flatMap((g) => g.items).find(
     (i) => i.name.toLowerCase() === catName.trim().toLowerCase(),
   );
   const spec = resolveSellSpec(matched?.slug);
   const isKnown = !!matched && !spec.generic;
+
+  const toCents = (s: string) => Math.round((parseFloat(s.replace(/[^0-9.]/g, "")) || 0) * 100);
+  const priceCents = toCents(price);
+  const payout = priceCents > 0 ? previewPayout(priceCents, matched?.slug) : null;
+
+  async function handleSubmit() {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const res = await submitListing({
+        categorySlug: matched?.slug ?? "",
+        categoryName: matched?.name ?? catName.trim(),
+        title: title.trim() || undefined,
+        priceCents,
+        floorCents: floorPrice ? toCents(floorPrice) : undefined,
+        originalCents: origPrice ? toCents(origPrice) : undefined,
+        condition: cond || undefined,
+        answers: answers as Record<string, string | string[]>,
+        photos: [],
+        pickupAddress: pickup.trim() || undefined,
+      });
+      setResult(res?.title || title.trim() || "Listing created");
+    } catch {
+      setResult("Your listing has been saved.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   const setAns = (key: string, val: string | string[]) => setAnswers((p) => ({ ...p, [key]: val }));
   const toggleChip = (key: string, opt: string) =>
@@ -810,8 +754,8 @@ function CreateModal({ onClose }: { onClose: () => void }) {
 
           {/* Title */}
           <div>
-            <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>Title</div>
-            <input placeholder="e.g. 2022 Peloton Bike+ – Like New" style={css(FIELD_INPUT)} />
+            <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>Title <span style={css("color:var(--muted);font-weight:500")}>(optional — AI writes one if blank)</span></div>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. 2022 Peloton Bike+ – Like New" style={css(FIELD_INPUT)} />
           </div>
 
           {/* Category-specific questions */}
@@ -821,7 +765,7 @@ function CreateModal({ onClose }: { onClose: () => void }) {
           <div style={css("display:flex;gap:12px")}>
             <div style={css("flex:0 0 150px")}>
               <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>Asking price</div>
-              <input inputMode="numeric" placeholder="$0" style={css(FIELD_INPUT)} />
+              <input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="numeric" placeholder="$0" style={css(FIELD_INPUT)} />
             </div>
             <div style={css("flex:1")}>
               <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>Condition</div>
@@ -836,6 +780,13 @@ function CreateModal({ onClose }: { onClose: () => void }) {
               </div>
             </div>
           </div>
+
+          {payout && (
+            <div style={css("display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--greenBg);border:1px solid #bfe0cd;border-radius:12px;padding:11px 14px")}>
+              <span style={css("font-size:12.5px;color:var(--green);font-weight:700")}>You&apos;ll receive after fees</span>
+              <span style={css("font-size:16px;font-weight:800;color:var(--green)")}>{payout.freePickup ? "Free pickup" : `~${formatPrice(payout.payoutCents)}`}</span>
+            </div>
+          )}
 
           {/* Pricing strategy — original + floor (private) */}
           <div style={css("display:flex;gap:12px")}>
@@ -886,7 +837,15 @@ function CreateModal({ onClose }: { onClose: () => void }) {
             <span>We suggest a price from recent comparable sales{isKnown ? ` of ${spec.title.toLowerCase()}s` : ""}.</span>
           </div>
         </div>
-        <div onClick={onClose} style={css("text-align:center;background:var(--maroon);color:#fff;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:20px")}>List my item</div>
+        {result ? (
+          <div style={css("text-align:center;margin-top:20px;background:var(--greenBg);border:1px solid #bfe0cd;border-radius:12px;padding:16px")}>
+            <div style={css("font-size:14px;font-weight:800;color:var(--green)")}>Listing submitted ✓</div>
+            <div style={css("font-size:13px;color:var(--ink);margin-top:4px")}>{result}</div>
+            <div onClick={onClose} style={css("margin-top:12px;font-size:13px;font-weight:700;color:var(--maroon);cursor:pointer")}>Done</div>
+          </div>
+        ) : (
+          <div onClick={handleSubmit} style={sx("text-align:center;color:#fff;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:20px", { background: submitting ? "var(--maroon2)" : "var(--maroon)", opacity: submitting ? 0.85 : 1 })}>{submitting ? "Listing your item…" : "List my item"}</div>
+        )}
       </div>
     </div>
   );

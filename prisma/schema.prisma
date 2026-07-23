@@ -62,3 +62,74 @@ model Category {
   name  String
   count Int    @default(0)
 }
+
+/// A buyer's offer on a listing. Money in integer cents. `status` is a plain
+/// string enum: pending|accepted|countered|declined.
+model Offer {
+  id            String   @id @default(cuid())
+  listingId     Int
+  listingTitle  String
+  listingImage  String?
+  buyerName     String
+  buyerState    String?
+  amountCents   Int
+  listPriceCents Int
+  status        String   @default("pending") // pending|accepted|countered|declined
+  counterCents  Int?
+  message       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([listingId])
+  @@index([status])
+}
+
+/// A reserved/confirmed purchase moving through the delivery lifecycle. Money in
+/// integer cents. `status`: reserved|scheduled|picked_up|in_transit|delivered|paid|cancelled.
+model Order {
+  id              String   @id @default(cuid())
+  listingId       Int
+  listingTitle    String
+  listingImage    String?
+  buyerName       String
+  priceCents      Int
+  depositCents    Int      @default(100)
+  balanceCents    Int
+  deliveryFeeCents Int     @default(0)
+  status          String   @default("reserved") // reserved|scheduled|picked_up|in_transit|delivered|paid|cancelled
+  pickupCity      String?
+  deliverCity     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+}
+
+/// Append-only timeline of order lifecycle events (label + timestamp).
+model OrderEvent {
+  id      String   @id @default(cuid())
+  orderId String
+  label   String
+  at      DateTime @default(now())
+
+  @@index([orderId])
+}
+
+/// A work-in-progress seller listing before publish. Free-form JSON captures the
+/// dynamic category question answers and photo set. Money in integer cents.
+model ListingDraft {
+  id            String   @id @default(cuid())
+  categorySlug  String?
+  categoryName  String?
+  title         String?
+  priceCents    Int?
+  floorCents    Int?
+  originalCents Int?
+  condition     String?
+  answers       Json?
+  photos        Json?
+  pickupAddress String?
+  status        String   @default("draft")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
