@@ -116,13 +116,29 @@ async function wcFetch(path: string): Promise<{ json: unknown; total: number; to
   return { json: await res.json(), total, totalPages };
 }
 
-/* Cache slug → category id (categories are stable; refreshed via fetch cache). */
+/* Full slug → category id map. The Store API's ?slug= filter is IGNORED (it
+   returns every category), so we must page the whole taxonomy and match exactly.
+   Cached in-module; also protected by fetch-level revalidation. */
+let CATEGORY_MAP: Map<string, number> | null = null;
+async function loadCategoryMap(): Promise<Map<string, number>> {
+  if (CATEGORY_MAP && CATEGORY_MAP.size > 0) return CATEGORY_MAP;
+  const map = new Map<string, number>();
+  for (let page = 1; page <= 8; page++) {
+    const { json, totalPages } = await wcFetch(`/products/categories?per_page=100&page=${page}`);
+    const arr = json as { id: number; slug: string }[];
+    if (!Array.isArray(arr) || arr.length === 0) break;
+    for (const c of arr) if (c.slug) map.set(c.slug, c.id);
+    if (totalPages && page >= totalPages) break;
+  }
+  if (map.size > 0) CATEGORY_MAP = map;
+  return map;
+}
+
 export async function getCategoryId(slug: string): Promise<number | null> {
   if (!slug) return null;
   try {
-    const { json } = await wcFetch(`/products/categories?slug=${encodeURIComponent(slug)}&per_page=1`);
-    const arr = json as { id: number }[];
-    return arr?.[0]?.id ?? null;
+    const map = await loadCategoryMap();
+    return map.get(slug) ?? null;
   } catch {
     return null;
   }
@@ -156,7 +172,9 @@ export async function listProducts(params: ListParams): Promise<ListingPage> {
   if (params.search) q.set("search", params.search);
   if (params.categorySlug) {
     const id = await getCategoryId(params.categorySlug);
-    if (id) q.set("category", String(id));
+    // Unresolved category → return empty rather than the whole catalog.
+    if (!id) return { items: [], total: 0, totalPages: 0, page };
+    q.set("category", String(id));
   }
   // Map our sort → Store API. "recommended" fetches by popularity then we re-rank.
   switch (params.orderby) {

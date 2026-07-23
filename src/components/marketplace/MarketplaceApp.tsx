@@ -159,14 +159,14 @@ export function MarketplaceApp() {
         <aside style={css("flex:0 0 289px;background:var(--cream);border-right:1px solid var(--line);overflow-y:auto;padding:12px 10px 36px")}>
           {/* Nav card */}
           <div style={css("background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:10px")}>
-            <NavRow active={view === "browse"} onClick={goBrowse} label="Browse all"
+            <NavRow active={view === "browse"} onClick={goBrowse} label="Browse all" accent="var(--maroon)"
               icon={<><path d="M4 9h16l-1-4.5H5L4 9Z" /><path d="M5 9v10.5h14V9" /><path d="M9.5 19.5V14h5v5.5" /></>} />
-            <NavRow active={view === "buying"} onClick={() => setView("buying")} label="Buying" chevron border
+            <NavRow active={view === "buying"} onClick={() => setView("buying")} label="Buying" chevron border accent="var(--blueInk)"
               icon={<><path d="M6 8h12l-1 12H7L6 8Z" /><path d="M9 8V6a3 3 0 0 1 6 0v2" /></>} />
-            <NavRow active={view === "selling"} onClick={() => setView("selling")} label="Selling" chevron border
+            <NavRow active={view === "selling"} onClick={() => setView("selling")} label="Selling" chevron border accent="var(--green)"
               icon={<><path d="M3 12 12 3h8v8l-9 9-8-8Z" /><circle cx="16" cy="8" r="1.4" /></>} />
             <a href="https://trycommonplace.com/track" target="_blank" style={css("display:flex;align-items:center;gap:10px;padding:9px 11px;cursor:pointer;border-top:1px solid var(--line)")}>
-              <span style={css("width:29px;height:29px;border-radius:8px;flex:0 0 auto;background:#F1EBE1;display:flex;align-items:center;justify-content:center")}>
+              <span style={css("width:29px;height:29px;border-radius:8px;flex:0 0 auto;background:color-mix(in srgb,var(--gold) 15%,white);color:var(--gold);display:flex;align-items:center;justify-content:center")}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9}><rect x="4" y="4" width="16" height="16" rx="2.5" /><path d="M8 9h8M8 13h8M8 17h5" /></svg>
               </span>
               <span style={css("font-size:15px;font-weight:600")}>Track order</span>
@@ -354,13 +354,14 @@ export function MarketplaceApp() {
 }
 
 /* ------------------------------- Sidebar nav row ------------------------------- */
-function NavRow({ active, onClick, label, icon, chevron, border }: {
-  active?: boolean; onClick: () => void; label: string; icon: React.ReactNode; chevron?: boolean; border?: boolean;
+function NavRow({ active, onClick, label, icon, chevron, border, accent = "var(--maroon)" }: {
+  active?: boolean; onClick: () => void; label: string; icon: React.ReactNode; chevron?: boolean; border?: boolean; accent?: string;
 }) {
-  const bg = active ? "var(--tint)" : "transparent";
-  const icoBg = active ? "var(--maroon)" : "#F1EBE1";
-  const icoFg = active ? "#fff" : "var(--ink)";
-  const txt = active ? "var(--maroon)" : "var(--ink)";
+  const soft = `color-mix(in srgb, ${accent} 14%, white)`;
+  const bg = active ? soft : "transparent";
+  const icoBg = active ? accent : soft;
+  const icoFg = active ? "#fff" : accent;
+  const txt = active ? accent : "var(--ink)";
   return (
     <div onClick={onClick} style={sx("display:flex;align-items:center;gap:10px;padding:9px 11px;cursor:pointer", border ? "border-top:1px solid var(--line)" : "", { background: bg })}>
       <span style={sx("width:29px;height:29px;border-radius:8px;flex:0 0 auto;display:flex;align-items:center;justify-content:center", { background: icoBg, color: icoFg })}>
@@ -477,7 +478,7 @@ function BrowseView({ locCity, onOpenProduct }: { locCity: string; onOpenProduct
           <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="1" y="6" width="14" height="10" rx="1.5" /><path d="M15 9h4l3 3.5V16h-7z" /><circle cx="6" cy="17.5" r="1.8" /><circle cx="18" cy="17.5" r="1.8" /></svg>
         </span>
         <div style={css("font-size:13.5px;line-height:1.45")}>
-          <b>Free delivery within 100 miles.</b> Every item is inspected at pickup, delivered white-glove, and you pay only after testing it at home — no meetups, no back-and-forth messaging.
+          <b>Free delivery within 100 miles.</b> We ship most items up to 1,500 miles and vehicles anywhere — inspected at pickup, delivered white-glove, and you pay only after testing it at home.
         </div>
       </div>
       <div style={css("display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px")}>

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { css, sx, Hoverable } from "@/lib/design/css";
 import { fetchListings } from "@/lib/clientApi";
-import { formatPrice, type Listing } from "@/lib/listing";
+import { formatPrice, shippingInfo, type Listing } from "@/lib/listing";
 import { Pin, ChevronLeft } from "@/components/marketplace/icons";
 import { useCart } from "@/components/cart/CartProvider";
 
@@ -217,6 +217,7 @@ export function ProductPage({ item, onBack, onOpenCategory, onMakeOffer }: Produ
   const [sent, setSent] = useState(false);
   const { add, has } = useCart();
   const inCart = has(item.id);
+  const ship = shippingInfo(item.categorySlug);
 
   const images = item.images.length > 0 ? item.images : [];
   const hasImages = images.length > 0;
@@ -414,7 +415,7 @@ export function ProductPage({ item, onBack, onOpenCategory, onMakeOffer }: Produ
           {/* pickup note */}
           <p style={css("display:flex;align-items:center;gap:7px;margin-top:11px;font-size:12.5px;color:var(--muted)")}>
             <Pin size={15} stroke="var(--maroon)" />
-            <span>Pickup in <strong style={css("color:var(--ink)")}>{city}</strong>. Delivery available nationwide.</span>
+            <span>Pickup in <strong style={css("color:var(--ink)")}>{city}</strong>. {ship.label}.</span>
           </p>
 
           {/* trust tiles */}
