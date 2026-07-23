@@ -190,8 +190,9 @@ interface ChatMsg { role: "user" | "assistant"; content: string; photo?: string 
 /* Component                                                          */
 /* ================================================================== */
 export function SellPage({ onDone }: { onDone?: () => void }) {
-  const [mode, setMode] = useState<"start" | "margot" | "form" | "confirm-cat">("start");
-  const [catGuess, setCatGuess] = useState<string | null>(null);
+  const [mode, setMode] = useState<"start" | "margot" | "form">("start");
+  const [catConfident, setCatConfident] = useState(true);
+  const [catEditing, setCatEditing] = useState(false);
 
   // ---- form state ----
   const [draftId, setDraftId] = useState<string>("");
@@ -257,15 +258,12 @@ export function SellPage({ onDone }: { onDone?: () => void }) {
   function startSell(rawName: string) {
     const t = rawName.trim();
     setTitle(t);
-    if (!t) { setCatGuess(null); setMode("confirm-cat"); return; }
     const { slug, confident } = categorizeName(t);
-    if (slug && confident) {
-      setCatSlug(slug);
-      setMode("form");
-    } else {
-      setCatGuess(slug);
-      setMode("confirm-cat");
-    }
+    const sure = !!slug && confident;
+    setCatSlug(slug ?? "");
+    setCatConfident(sure);
+    setCatEditing(!sure); // auto-open the inline picker only when we're unsure
+    setMode("form");
   }
 
   function loadDraft(d: Draft) {
@@ -378,35 +376,6 @@ export function SellPage({ onDone }: { onDone?: () => void }) {
     return <MargotChat onBack={() => setMode("start")} onUse={(f) => { applyFields(f); openForm(f.title); }} />;
   }
 
-  /* ---------------- Confirm category (only when unsure) ---------------- */
-  if (mode === "confirm-cat") {
-    return (
-      <div style={css("max-width:640px;margin:0 auto;padding:28px 22px 80px")}>
-        <Hoverable as="span" onClick={() => setMode("start")} styles="display:inline-flex;align-items:center;gap:5px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;margin-bottom:18px" hover="color:var(--ink)">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>Back
-        </Hoverable>
-        <h1 style={css("font-family:'Reckless','Newsreader',serif;font-size:28px;font-weight:500;letter-spacing:-.4px;margin-bottom:8px")}>Which category fits{title ? ` “${title}”` : " your item"}?</h1>
-        <p style={css("font-size:14px;color:var(--muted);margin-bottom:24px")}>{catGuess ? "Tap to confirm our best guess (highlighted), or pick another." : "Pick the closest match — it helps us price and inspect your item."}</p>
-        {CAT_GROUPS.map((g) => (
-          <div key={g.name} style={css("margin-bottom:20px")}>
-            <div style={css("font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:9px")}>{g.name}</div>
-            <div style={css("display:flex;flex-wrap:wrap;gap:8px")}>
-              {g.items.map((it) => {
-                const isGuess = it.slug === catGuess;
-                return (
-                  <Hoverable key={it.slug} as="button" onClick={() => { setCatSlug(it.slug); setMode("form"); }}
-                    styles={sx("padding:9px 15px;border-radius:20px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit", isGuess ? { background: PLUM, color: "#fff", border: `1px solid ${PLUM}` } : { background: "var(--paper)", color: "var(--ink)", border: "1px solid var(--line)" })}
-                    hover={isGuess ? "filter:brightness(1.08)" : "border-color:#d9b7c2"}>{it.name}{isGuess ? "  ✓" : ""}</Hoverable>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-        <Hoverable as="button" onClick={() => { setCatSlug(""); setMode("form"); }} styles="margin-top:6px;background:transparent;color:var(--muted);border:none;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;text-decoration:underline" hover="color:var(--ink)">Skip — list it as a generic item</Hoverable>
-      </div>
-    );
-  }
-
   /* ---------------- Form ---------------- */
   if (mode === "form") {
     return (
@@ -444,17 +413,36 @@ export function SellPage({ onDone }: { onDone?: () => void }) {
             <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Peloton Bike+, Sub-Zero fridge, leather sofa…" style={css(FIELD)} />
           </div>
 
-          {/* Category — auto-assigned from the title; confirm inline, not a step */}
+          {/* Category — auto-assigned from the title; confirm/change inline (no extra step) */}
           <div>
-            <FieldLabel label="Category" />
+            <FieldLabel label="Category" help={!catConfident ? "We guessed this from your title — confirm it or tap Change." : undefined} />
             <div style={css("display:flex;align-items:center;gap:10px;flex-wrap:wrap")}>
-              <span style={sx("display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:20px;font-size:13.5px;font-weight:700", matched ? { background: "#F4E7EA", color: PLUM } : { background: "var(--putty)", color: "var(--muted)" })}>
+              <span style={sx("display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:20px;font-size:13.5px;font-weight:700", matched ? { background: "#F4E7EA", color: PLUM } : { background: "var(--putty)", color: "var(--muted)" }, !catConfident && "box-shadow:0 0 0 2px #E9B355")}>
                 {matched ? (
                   <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6}><path d="M20 6 9 17l-5-5" /></svg>{matched.name}</>
                 ) : "Generic item"}
               </span>
-              <Hoverable as="span" onClick={() => setMode("confirm-cat")} styles="font-size:13px;font-weight:700;color:var(--blueInk);cursor:pointer" hover="text-decoration:underline">Change</Hoverable>
+              <Hoverable as="span" onClick={() => setCatEditing((v) => !v)} styles="font-size:13px;font-weight:700;color:var(--blueInk);cursor:pointer" hover="text-decoration:underline">{catEditing ? "Close" : "Change"}</Hoverable>
             </div>
+            {catEditing && (
+              <div style={css("margin-top:12px;border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--paper);max-height:300px;overflow-y:auto")}>
+                {CAT_GROUPS.map((g) => (
+                  <div key={g.name} style={css("margin-bottom:12px")}>
+                    <div style={css("font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:7px")}>{g.name}</div>
+                    <div style={css("display:flex;flex-wrap:wrap;gap:6px")}>
+                      {g.items.map((it) => {
+                        const on = it.slug === catSlug;
+                        return (
+                          <div key={it.slug} onClick={() => { setCatSlug(it.slug); setCatConfident(true); setCatEditing(false); }}
+                            style={sx("padding:7px 12px;border-radius:16px;font-size:12.5px;font-weight:600;cursor:pointer;transition:all .14s", on ? { background: PLUM, color: "#fff", border: `1px solid ${PLUM}` } : { background: "var(--paper)", color: "var(--ink)", border: "1px solid var(--line)" })}>{it.name}</div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                <div onClick={() => { setCatSlug(""); setCatConfident(true); setCatEditing(false); }} style={css("font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;text-decoration:underline;margin-top:4px")}>Use a generic listing instead</div>
+              </div>
+            )}
           </div>
 
           {/* Category-specific ACF fields */}
