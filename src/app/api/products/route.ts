@@ -1,17 +1,15 @@
 import type { NextRequest } from "next/server";
-import { listProducts, type ListParams } from "@/lib/wc";
+import { listFromSource } from "@/lib/dataSource";
 import { rankListings } from "@/lib/ranking";
 
 export const revalidate = 300;
 
-const SORTS: ListParams["orderby"][] = ["recommended", "date", "price", "price-desc", "rating", "popularity"];
+const SORTS = ["recommended", "date", "price", "price-desc", "rating", "popularity"];
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const orderbyRaw = sp.get("orderby") ?? "recommended";
-  const orderby = (SORTS.includes(orderbyRaw as ListParams["orderby"])
-    ? orderbyRaw
-    : "recommended") as ListParams["orderby"];
+  const orderby = SORTS.includes(orderbyRaw) ? orderbyRaw : "recommended";
   const page = parseInt(sp.get("page") ?? "1", 10) || 1;
   const perPage = parseInt(sp.get("per_page") ?? "24", 10) || 24;
   const search = sp.get("search") ?? undefined;
@@ -19,7 +17,8 @@ export async function GET(req: NextRequest) {
   const city = sp.get("city") ?? undefined;
 
   try {
-    const data = await listProducts({ page, perPage, search, categorySlug: category, orderby });
+    // Reads from our Postgres when populated, else falls back to live inventory.
+    const data = await listFromSource({ page, perPage, search, category, orderby, city });
     const items =
       orderby === "recommended" ? rankListings(data.items, { query: search, city }) : data.items;
     return Response.json({ ...data, items });

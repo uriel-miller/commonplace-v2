@@ -1,13 +1,64 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// Prisma schema — Postgres data foundation for the Commonplace marketplace.
+// Mirrors the `Listing` domain type (src/lib/listing.ts) plus the raw WooCommerce
+// fields we import. The client is consumed by src/lib/db.ts and src/lib/dataSource.ts.
+//
+// Prisma 7 note: the datasource `url` is NO LONGER allowed in the schema (P1012).
+// The connection string lives in prisma.config.ts (`datasource.url` <- DATABASE_URL)
+// for Migrate/CLI, and is passed to `new PrismaClient({ accelerateUrl })` at runtime.
+// See scripts/README-import.md.
 
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
+  // Emit explicit ".ts" import specifiers inside the generated (—@ts-nocheck) client
+  // so BOTH bundlers (Next/Turbopack) AND plain Node ESM — used by
+  // scripts/import-listings.mjs via native TypeScript type-stripping — can resolve it.
+  importFileExtension = "ts"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+/// A sellable marketplace listing, normalized 1:1 from the WooCommerce Store API.
+/// `id` is the WooCommerce product id (stable) so imports upsert idempotently.
+model Listing {
+  id           Int      @id
+  slug         String   @unique
+  title        String
+  priceCents   Int
+  /// Original/retail price when on sale, else null.
+  retailCents  Int?
+  savingsPct   Int?
+  categoryName String
+  categorySlug String
+  /// Parsed "City, ST" when present in the title.
+  location     String?
+  condition    String?
+  /// string[] of image URLs.
+  images       Json
+  /// string[] of plain-text description paragraphs.
+  description  Json
+  sku          String
+  dimensions   String?
+  weight       String?
+  rating       Float    @default(0)
+  reviewCount  Int      @default(0)
+  permalink    String
+  updatedAt    DateTime @updatedAt
+
+  @@index([categorySlug])
+  @@index([priceCents])
+  @@index([rating])
+  @@index([updatedAt])
+}
+
+/// Denormalized lookup of distinct categories, used to build browse/filter menus
+/// without scanning the whole listing table. Populated by scripts/import-listings.mjs.
+/// (No FK join is needed: each listing carries its own categoryName/categorySlug,
+/// which is what every read query filters on — keeping imports order-independent.)
+model Category {
+  slug  String @id
+  name  String
+  count Int    @default(0)
 }

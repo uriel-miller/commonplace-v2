@@ -9,17 +9,32 @@ import {
   CONDITIONS,
   BROWSE_CHIPS,
   ALL_CATEGORY_NAMES,
-  findCategoryBySlug,
   type CatItem,
 } from "./data";
 import { resolveSellSpec, type Field } from "./sellSchema";
 import { fetchListings } from "@/lib/clientApi";
 import { formatPrice, type Listing } from "@/lib/listing";
 import { Chevron, ChevronRight, ChevronLeft, Pin, Plus, Close, Search } from "./icons";
+import { useCart } from "@/components/cart/CartProvider";
+import { CartPage } from "@/components/cart/CartPage";
+import { AccountPage } from "@/components/pages/account/AccountPage";
+import { SearchPage } from "@/components/pages/search/SearchPage";
+import { resolveInfoPage } from "@/components/pages/info";
+import { ProductPage } from "@/components/product/ProductPage";
+import { AddressAutocomplete } from "@/components/sell/AddressAutocomplete";
+import { GOOGLE_REVIEWS_URL } from "./mediaSections";
+import { ErrorBoundary } from "./ErrorBoundary";
+
+const LEARN_VIDEOS = [
+  { title: "What is Commonplace", blurb: "The whole process, start to finish.", id: "QZAyLOrvRBk", accent: "var(--maroon)", g1: "#efe4d5", g2: "#e6dac9" },
+  { title: "How Delivery Works", blurb: "Pickup, transport, and setup.", id: "6wDf6DM1Qxs", accent: "var(--blue)", g1: "#e3ebf5", g2: "#d7e2f0" },
+  { title: "How Offers Work", blurb: "Make an offer and bidding.", id: "GECSvwp3u10", accent: "var(--gold)", g1: "#f3ead2", g2: "#ece0c4" },
+  { title: "How Pickup Works", blurb: "Inspection to payment.", id: "pL03sBZGS34", accent: "var(--red)", g1: "#f3e0da", g2: "#ecd3cb" },
+];
 
 const LOGO = "/design-assets/805cd68e-4bc0-474c-9062-282704b82b24.svg";
 
-type View = "browse" | "category" | "buying" | "selling" | "product";
+type View = "browse" | "category" | "buying" | "selling" | "product" | "account" | "search" | "cart" | "info";
 
 // Root CSS custom properties, ported verbatim from the design wrapper (the
 // canvas-scaling hacks — zoom/125vw/125vh — are dropped so it renders 1:1).
@@ -30,6 +45,10 @@ export function MarketplaceApp() {
   const [view, setView] = useState<View>("browse");
   const [category, setCategory] = useState<CatItem | null>(null);
   const [product, setProduct] = useState<Listing | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [infoSlug, setInfoSlug] = useState<string | null>(null);
+  const [videoId, setVideoId] = useState<string | null>(null);
+  const cart = useCart();
   const [menuOpen, setMenuOpen] = useState(false);
   const [locOpen, setLocOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -55,7 +74,13 @@ export function MarketplaceApp() {
     setView("browse");
     setCategory(null);
     setProduct(null);
+    setInfoSlug(null);
   }
+  function openInfo(slug: string) {
+    setInfoSlug(slug);
+    setView("info");
+  }
+  const showSidebar = view !== "account" && view !== "cart" && view !== "info";
   function toggleCond(key: string) {
     setConds((prev) => {
       const next = new Set(prev);
@@ -78,15 +103,15 @@ export function MarketplaceApp() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={LOGO} alt="Commonplace" style={css("height:26px;width:auto;display:block")} />
         </div>
-        <div style={css("flex:0 1 380px;display:flex;align-items:center;gap:8px;background:#F1EBE1;border-radius:22px;padding:10px 16px;color:var(--muted)")}>
+        <div onClick={() => { setSearchQuery(""); setView("search"); }} style={css("flex:0 1 380px;display:flex;align-items:center;gap:8px;background:#F1EBE1;border-radius:22px;padding:10px 16px;color:var(--muted);cursor:pointer")}>
           <Search />
           <span style={css("font-size:14px")}>Search Commonplace</span>
         </div>
         <div style={css("display:flex;align-items:center;gap:20px;font-size:13px;font-weight:600;color:var(--muted);flex:0 0 auto;white-space:nowrap")}>
-          <Hoverable as="a" href="https://trycommonplace.com/about" target="_blank" hover="color:var(--ink)">About Us</Hoverable>
-          <Hoverable as="a" href="https://trycommonplace.com/refer" target="_blank" hover="color:var(--ink)">Refer</Hoverable>
-          <Hoverable as="a" href="https://trycommonplace.com/contact" target="_blank" hover="color:var(--ink)">Contact Us</Hoverable>
-          <Hoverable styles="cursor:pointer" hover="color:var(--ink)">Reviews</Hoverable>
+          <Hoverable onClick={() => openInfo("about")} styles="cursor:pointer" hover="color:var(--ink)">About Us</Hoverable>
+          <Hoverable onClick={() => openInfo("refer")} styles="cursor:pointer" hover="color:var(--ink)">Refer</Hoverable>
+          <Hoverable onClick={() => openInfo("contact")} styles="cursor:pointer" hover="color:var(--ink)">Contact Us</Hoverable>
+          <Hoverable onClick={() => window.open(GOOGLE_REVIEWS_URL, "_blank", "noopener")} styles="cursor:pointer" hover="color:var(--ink)">Reviews</Hoverable>
           <div style={css("position:relative")}>
             <div onClick={() => setMenuOpen((v) => !v)} style={css("display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--ink);font-weight:700")}>
               Terms &amp; Conditions
@@ -99,10 +124,10 @@ export function MarketplaceApp() {
                 {[
                   ["Terms & Conditions", "terms"],
                   ["Warranty", "warranty"],
-                  ["Return Policy", "returns"],
+                  ["Return Policy", "return-policy"],
                   ["Privacy Policy", "privacy"],
-                ].map(([label, path]) => (
-                  <Hoverable key={path} as="a" href={`https://trycommonplace.com/${path}`} target="_blank" styles="display:block;padding:9px 12px;border-radius:8px;font-size:13.5px;font-weight:600;color:var(--ink)" hover="background:var(--putty)">
+                ].map(([label, slug]) => (
+                  <Hoverable key={slug} onClick={() => { setMenuOpen(false); openInfo(slug); }} styles="display:block;padding:9px 12px;border-radius:8px;font-size:13.5px;font-weight:600;color:var(--ink);cursor:pointer" hover="background:var(--putty)">
                     {label}
                   </Hoverable>
                 ))}
@@ -112,15 +137,17 @@ export function MarketplaceApp() {
         </div>
         <div style={css("flex:1")} />
         <div onClick={() => setView("selling")} style={css("font-size:14px;font-weight:700;color:var(--maroon);cursor:pointer;padding:0 6px;white-space:nowrap;flex:0 0 auto")}>Sell an item</div>
-        <Hoverable title="Cart" styles="position:relative;width:40px;height:40px;flex:0 0 auto;border-radius:50%;background:var(--blueBg);display:flex;align-items:center;justify-content:center;cursor:pointer" hover="filter:brightness(.96)">
+        <Hoverable title="Cart" onClick={() => setView("cart")} styles="position:relative;width:40px;height:40px;flex:0 0 auto;border-radius:50%;background:var(--blueBg);display:flex;align-items:center;justify-content:center;cursor:pointer" hover="filter:brightness(.96)">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--blueInk)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <circle cx="9" cy="21" r="1.4" />
             <circle cx="18" cy="21" r="1.4" />
             <path d="M1 1h3l2.6 12.4a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 2-1.6L23 6H6" />
           </svg>
-          <span style={css("position:absolute;top:-2px;right:-2px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--maroon);color:#fff;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--paper)")}>2</span>
+          {cart.count > 0 && (
+            <span style={css("position:absolute;top:-2px;right:-2px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--maroon);color:#fff;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--paper)")}>{cart.count}</span>
+          )}
         </Hoverable>
-        <div title="Your account" style={css("display:flex;align-items:center;gap:9px;background:var(--blueBg);border-radius:22px;padding:4px 14px 4px 4px;cursor:pointer")}>
+        <div title="Your account" onClick={() => setView("account")} style={css("display:flex;align-items:center;gap:9px;background:var(--blueBg);border-radius:22px;padding:4px 14px 4px 4px;cursor:pointer")}>
           <span style={css("width:32px;height:32px;border-radius:50%;background:var(--blueInk);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:14px")}>A</span>
           <span style={css("font-size:13.5px;font-weight:700;color:var(--blueInk)")}>Account</span>
         </div>
@@ -128,6 +155,7 @@ export function MarketplaceApp() {
 
       {/* ======================= SHELL: SIDEBAR + MAIN ======================= */}
       <div style={css("flex:1;display:flex;min-height:0")}>
+        {showSidebar && (
         <aside style={css("flex:0 0 289px;background:var(--cream);border-right:1px solid var(--line);overflow-y:auto;padding:12px 10px 36px")}>
           {/* Nav card */}
           <div style={css("background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:10px")}>
@@ -219,21 +247,16 @@ export function MarketplaceApp() {
               <div style={css("background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px 13px;margin-bottom:10px")}>
                 <div style={css("font-size:15px;font-weight:800;margin-bottom:9px")}>Learn about Commonplace</div>
                 <div style={css("display:flex;flex-direction:column;gap:7px")}>
-                  {[
-                    ["var(--maroon)", "#efe4d5", "#e6dac9", "What is Commonplace", "The whole process, start to finish."],
-                    ["var(--blue)", "#e3ebf5", "#d7e2f0", "How Delivery Works", "Pickup, transport, and setup."],
-                    ["var(--gold)", "#f3ead2", "#ece0c4", "How Offers Work", "Make an offer and bidding."],
-                    ["var(--red)", "#f3e0da", "#ecd3cb", "How Pickup Works", "Inspection to payment."],
-                  ].map(([accent, g1, g2, title, blurb]) => (
-                    <Hoverable key={title} styles={`display:flex;gap:10px;align-items:center;padding:7px;border:1px solid var(--line);border-left:4px solid ${accent};border-radius:10px;cursor:pointer;transition:box-shadow .15s`} hover="box-shadow:0 6px 16px rgba(60,10,35,.1)">
-                      <div style={sx("width:42px;height:42px;flex:0 0 auto;border-radius:7px;display:flex;align-items:center;justify-content:center", { background: `repeating-linear-gradient(135deg,${g1} 0 8px,${g2} 8px 16px)` })}>
+                  {LEARN_VIDEOS.map((v) => (
+                    <Hoverable key={v.title} onClick={() => setVideoId(v.id)} styles={`display:flex;gap:10px;align-items:center;padding:7px;border:1px solid var(--line);border-left:4px solid ${v.accent};border-radius:10px;cursor:pointer;transition:box-shadow .15s`} hover="box-shadow:0 6px 16px rgba(60,10,35,.1)">
+                      <div style={sx("width:42px;height:42px;flex:0 0 auto;border-radius:7px;display:flex;align-items:center;justify-content:center", { background: `repeating-linear-gradient(135deg,${v.g1} 0 8px,${v.g2} 8px 16px)` })}>
                         <span style={css("width:21px;height:21px;border-radius:50%;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center")}>
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill={accent}><path d="M8 5v14l11-7z" /></svg>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill={v.accent}><path d="M8 5v14l11-7z" /></svg>
                         </span>
                       </div>
                       <div style={css("min-width:0")}>
-                        <div style={css("font-size:12.5px;font-weight:700;font-family:'Newsreader',serif")}>{title}</div>
-                        <div style={css("font-size:11px;color:var(--muted);line-height:1.35")}>{blurb}</div>
+                        <div style={css("font-size:12.5px;font-weight:700;font-family:'Newsreader',serif")}>{v.title}</div>
+                        <div style={css("font-size:11px;color:var(--muted);line-height:1.35")}>{v.blurb}</div>
                       </div>
                     </Hoverable>
                   ))}
@@ -263,7 +286,7 @@ export function MarketplaceApp() {
                     </Hoverable>
                   ))}
                 </div>
-                <div style={css("text-align:center;margin-top:9px;font-size:12px;font-weight:700;color:var(--blueInk);cursor:pointer")}>See all reviews →</div>
+                <div onClick={() => window.open(GOOGLE_REVIEWS_URL, "_blank", "noopener")} style={css("text-align:center;margin-top:9px;font-size:12px;font-weight:700;color:var(--blueInk);cursor:pointer")}>See all reviews →</div>
               </div>
 
               {/* As featured in */}
@@ -303,20 +326,28 @@ export function MarketplaceApp() {
             </>
           )}
         </aside>
+        )}
 
         {/* ============================ MAIN ============================ */}
-        <main style={css("flex:1;overflow-y:auto;padding:20px 22px 56px 7px")}>
-          {view === "browse" && <BrowseView locCity={locCity} onOpenProduct={openProduct} />}
-          {view === "category" && category && <CategoryView catName={category.name} categorySlug={category.slug} onOpenProduct={openProduct} />}
-          {view === "buying" && <BuyingView onBrowse={goBrowse} />}
-          {view === "selling" && <SellingView onBrowse={goBrowse} onNew={() => setCreateOpen(true)} />}
-          {view === "product" && product && <ProductView item={product} onBrowse={goBrowse} onOpenCategory={openCategory} onMakeOffer={() => setCreateOpen(false)} />}
+        <main style={css(showSidebar ? "flex:1;overflow-y:auto;padding:20px 22px 56px 7px" : "flex:1;overflow-y:auto;padding:0")}>
+          <ErrorBoundary onReset={goBrowse}>
+            {view === "browse" && <BrowseView locCity={locCity} onOpenProduct={openProduct} />}
+            {view === "category" && category && <CategoryView catName={category.name} categorySlug={category.slug} onOpenProduct={openProduct} />}
+            {view === "buying" && <BuyingView onBrowse={goBrowse} />}
+            {view === "selling" && <SellingView onBrowse={goBrowse} onNew={() => setCreateOpen(true)} />}
+            {view === "product" && product && <ProductPage item={product} onBack={goBrowse} onOpenCategory={(slug, name) => openCategory({ name, slug })} onMakeOffer={() => setCreateOpen(true)} />}
+            {view === "search" && <SearchPage initialQuery={searchQuery} onOpenProduct={openProduct} />}
+            {view === "account" && <AccountPage onBack={goBrowse} />}
+            {view === "cart" && <CartPage onBrowse={goBrowse} onCheckout={() => {}} onOpenProduct={openProduct} />}
+            {view === "info" && infoSlug && <InfoView slug={infoSlug} />}
+          </ErrorBoundary>
         </main>
       </div>
 
       {/* ============================ MODALS ============================ */}
       {locOpen && <LocationModal city={locCity} onCity={setLocCity} onClose={() => setLocOpen(false)} />}
       {createOpen && <CreateModal onClose={() => setCreateOpen(false)} />}
+      {videoId && <VideoLightbox id={videoId} onClose={() => setVideoId(null)} />}
       <ConciergeChat open={chatOpen} onToggle={() => setChatOpen((v) => !v)} />
     </div>
   );
@@ -635,191 +666,23 @@ function SellingView({ onBrowse, onNew }: { onBrowse: () => void; onNew: () => v
   );
 }
 
-/* ------------------------------- Product view ------------------------------- */
-const PAYMENTS = ["VISA", "MC", "AMEX", "Discover", "PayPal", "Venmo", "Klarna"];
-const FEATURES = [
-  ["FREE delivery & install", "var(--blueBg)", "var(--blueInk)"],
-  ["Inspect upon delivery", "var(--tint)", "var(--maroon)"],
-  ["2-month warranty included", "var(--yellowBg)", "var(--gold)"],
-  ["Verified sellers", "#efe7f3", "var(--purple)"],
-] as const;
-const HOW_STEPS = [
-  ["1", "Buy with $1", "Reserve any item with a dollar. You're only charged the full amount at delivery.", "var(--maroon)"],
-  ["2", "We bring it inside", "Delivery and setup in the room of your choice. No schlepping, no favors.", "var(--gold)"],
-  ["3", "Inspect, then pay", "Test it out. Open every drawer. Charge the rest only after you say yes.", "var(--blueInk)"],
-  ["4", "Peace of mind, covered", "Dedicated human support on every order. 12-month warranty available.", "var(--purple)"],
-] as const;
-const FAQS: [string, string][] = [
-  ["How does the $1 deposit work?", "You pay $1 today to reserve the item. We bring it to your door, you inspect it in person, and only then is the rest of the balance charged. If anything is off, you walk away — your dollar is refunded."],
-  ["What if I don't like it once it's here?", "You inspect before you pay the balance. If it's not right, you don't take it and you're not charged."],
-  ["Is \"like new\" really like new?", "Every listing is verified and inspected at pickup. Condition is confirmed before it's delivered."],
-  ["How does delivery actually work?", "A Commonplace driver picks up, transports, and sets up the item in your home — white-glove, no meetups."],
-];
 
-function ProductView({ item, onBrowse, onOpenCategory, onMakeOffer }: {
-  item: Listing; onBrowse: () => void; onOpenCategory: (c: CatItem) => void; onMakeOffer: () => void;
-}) {
-  const cat = findCategoryBySlug(item.categorySlug);
-  const [active, setActive] = useState(0);
-  const [related, setRelated] = useState<Listing[]>([]);
-  const [faqOpen, setFaqOpen] = useState<number | null>(0);
-  const [question, setQuestion] = useState("");
+/* ------------------------------- Info page view ------------------------------- */
+function InfoView({ slug }: { slug: string }) {
+  const entry = resolveInfoPage(slug);
+  if (!entry) return <EmptyState text="That page isn't available." />;
+  const C = entry.Component;
+  return <C />;
+}
 
-  useEffect(() => {
-    let alive = true;
-    setActive(0);
-    fetchListings({ category: item.categorySlug, perPage: 5, orderby: "recommended" }).then((d) => {
-      if (alive) setRelated(d.items.filter((x) => x.id !== item.id).slice(0, 4));
-    });
-    return () => { alive = false; };
-  }, [item.id, item.categorySlug]);
-
-  const heroImg = item.images[active] ?? item.images[0];
-  const rating = item.rating > 0 ? item.rating.toFixed(1) : "5.0";
-  const saveDollars = item.retailCents ? Math.round((item.retailCents - item.priceCents) / 100) : 0;
-
+/* ------------------------------- Video lightbox ------------------------------- */
+function VideoLightbox({ id, onClose }: { id: string; onClose: () => void }) {
   return (
-    <div style={css("max-width:1040px")}>
-      <div style={css("display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:14px")}>
-        <a onClick={onBrowse} style={css("color:var(--blueInk);font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px")}><ChevronLeft stroke="currentColor" />Browse</a>
-        {cat && (<><span style={css("color:var(--muted)")}>/</span><a onClick={() => onOpenCategory(cat)} style={css("color:var(--blueInk);font-weight:600;cursor:pointer")}>{cat.name}</a></>)}
-        <span style={css("color:var(--muted)")}>/</span><span style={css("color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px")}>{item.title}</span>
+    <div onClick={onClose} style={css("position:fixed;inset:0;background:rgba(15,8,11,.8);display:flex;align-items:center;justify-content:center;z-index:400;padding:24px;animation:fade .15s ease both")}>
+      <div onClick={(e) => e.stopPropagation()} style={css("width:min(880px,94vw);aspect-ratio:16/9;background:#000;border-radius:14px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5);position:relative")}>
+        <iframe src={`https://www.youtube.com/embed/${id}?autoplay=1&rel=0`} title="Commonplace" allow="autoplay; encrypted-media; fullscreen" allowFullScreen style={css("position:absolute;inset:0;width:100%;height:100%;border:0")} />
       </div>
-
-      <div style={css("display:grid;grid-template-columns:1.15fr 1fr;gap:26px;align-items:start")}>
-        {/* Gallery */}
-        <div>
-          <div style={css("position:relative;aspect-ratio:1;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:repeating-linear-gradient(135deg,#EDE4D6 0 18px,#E5DACA 18px 36px);display:flex;align-items:center;justify-content:center")}>
-            {heroImg ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={heroImg} alt={item.title} style={css("position:absolute;inset:0;width:100%;height:100%;object-fit:cover")} />
-            ) : (
-              <span style={css("font-family:ui-monospace,monospace;font-size:13px;letter-spacing:.14em;color:#9a8c78;text-transform:uppercase")}>{item.categoryName}</span>
-            )}
-            {item.savingsPct ? <div style={css("position:absolute;top:12px;left:12px;background:var(--green);color:#fff;padding:5px 11px;border-radius:20px;font-size:12px;font-weight:800")}>Save {item.savingsPct}%</div> : null}
-            {item.condition && <div style={css("position:absolute;top:12px;right:12px;background:rgba(255,255,255,.95);color:var(--ink);padding:5px 11px;border-radius:20px;font-size:11.5px;font-weight:700")}>{item.condition}</div>}
-          </div>
-          {item.images.length > 1 && (
-            <div style={css("display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:8px")}>
-              {item.images.slice(0, 5).map((src, i) => (
-                <div key={i} onClick={() => setActive(i)} style={sx("aspect-ratio:1;border-radius:9px;overflow:hidden;cursor:pointer", { border: i === active ? "2px solid var(--maroon)" : "1px solid var(--line)" })}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={src} alt="" style={css("width:100%;height:100%;object-fit:cover")} />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Buy box */}
-        <div>
-          <div style={css("display:flex;align-items:center;justify-content:space-between;gap:10px")}>
-            <div style={css("font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--blueInk);font-weight:700")}>{item.categoryName}</div>
-            <div style={css("display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:var(--muted)")}><span style={css("color:var(--gold)")}>★</span>{rating}</div>
-          </div>
-          <h1 style={css("font-family:'Newsreader',serif;font-size:27px;font-weight:500;line-height:1.14;letter-spacing:-.4px;margin-top:4px")}>{item.title}</h1>
-          {item.location && <div style={css("display:flex;align-items:center;gap:5px;font-size:13px;color:var(--muted);margin-top:8px")}><Pin size={14} />{item.location}</div>}
-
-          <div style={css("margin-top:16px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px")}>
-            <div style={css("display:flex;align-items:baseline;gap:10px")}>
-              <span style={css("font-size:30px;font-weight:800;letter-spacing:-.5px")}>{formatPrice(item.priceCents)}</span>
-              {item.retailCents ? <span style={css("font-size:15px;color:var(--muted);text-decoration:line-through")}>Retail {formatPrice(item.retailCents)}</span> : null}
-            </div>
-            {saveDollars > 0 && <div style={css("font-size:13px;color:var(--green);font-weight:700;margin-top:2px")}>You save ${saveDollars.toLocaleString()} · Up to 80% off across Commonplace</div>}
-            <div style={css("display:inline-flex;align-items:center;gap:6px;margin-top:12px;background:var(--maroon);color:#fff;border-radius:20px;padding:5px 12px;font-size:12px;font-weight:800")}>Pay $1 upfront<span style={css("font-weight:500;opacity:.85")}>rest on delivery</span></div>
-            <button style={css("width:100%;margin-top:12px;background:var(--maroon);color:#fff;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px")}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1.4" /><circle cx="18" cy="21" r="1.4" /><path d="M1 1h3l2.6 12.4a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 2-1.6L23 6H6" /></svg>
-              Add to cart
-            </button>
-            <button onClick={onMakeOffer} style={css("width:100%;margin-top:8px;background:#fff;color:var(--maroon);border:1px solid var(--maroon);border-radius:12px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit")}>Make an offer</button>
-            <div style={css("display:flex;flex-wrap:wrap;gap:5px;margin-top:12px")}>
-              {PAYMENTS.map((p) => (<span key={p} style={css("font-size:10px;font-weight:800;color:var(--muted);background:var(--putty);border:1px solid var(--line);border-radius:5px;padding:3px 7px")}>{p}</span>))}
-            </div>
-          </div>
-
-          <div style={css("display:flex;align-items:center;gap:10px;margin-top:12px;background:var(--blueBg);border:1px solid #cfe0f2;border-radius:12px;padding:11px 14px;font-size:13px")}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--blueInk)" strokeWidth={2}><rect x="1" y="6" width="14" height="10" rx="1.5" /><path d="M15 9h4l3 3.5V16h-7z" /><circle cx="6" cy="17.5" r="1.8" /><circle cx="18" cy="17.5" r="1.8" /></svg>
-            <span>Order by <b>today</b>, receive by <b>Monday</b>. Delivery available nationwide.</span>
-          </div>
-
-          <div style={css("display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px")}>
-            {FEATURES.map(([t, bg, fg]) => (
-              <div key={t} style={sx("display:flex;align-items:center;gap:8px;border-radius:12px;padding:10px 12px;font-size:12px;font-weight:700", { background: bg, color: fg })}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6}><path d="M20 6 9 17l-5-5" /></svg>{t}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Product details */}
-      <div style={css("margin-top:34px;border-top:1px solid var(--line);padding-top:22px")}>
-        <div style={css("font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--maroon);font-weight:800;margin-bottom:14px")}>Product details</div>
-        <div style={css("display:grid;grid-template-columns:1.4fr 1fr;gap:34px;align-items:start")}>
-          <div style={css("display:flex;flex-direction:column;gap:10px;font-size:14px;line-height:1.55;color:#3a3033")}>
-            {item.description.length > 0 ? item.description.map((p, i) => (<p key={i}>{p}</p>)) : <p style={css("color:var(--muted)")}>No description provided.</p>}
-          </div>
-          <div style={css("border:1px solid var(--line);border-radius:12px;overflow:hidden")}>
-            {[["SKU", item.sku || "—"], ["Condition", item.condition ?? "—"], ["Listing ID", `CP-${item.id}`], ["Dimensions", item.dimensions ?? "—"], ["Weight", item.weight ?? "—"]].map(([k, v], i) => (
-              <div key={k} style={sx("display:flex;justify-content:space-between;gap:12px;padding:12px 14px;font-size:13px", i > 0 ? "border-top:1px solid var(--line)" : "")}>
-                <span style={css("color:var(--muted)")}>{k}</span><span style={css("font-weight:600;text-align:right")}>{v}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Customers also bought */}
-      {related.length > 0 && (
-        <div style={css("margin-top:34px;border-top:1px solid var(--line);padding-top:22px")}>
-          <h2 style={css("font-family:'Newsreader',serif;font-size:26px;font-weight:500;margin-bottom:16px")}>Customers also bought</h2>
-          <div style={css("display:grid;grid-template-columns:repeat(4,1fr);gap:12px")}>
-            {related.map((r) => (<div key={r.id} onClick={() => { window.scrollTo(0, 0); onOpenCategory({ name: r.categoryName, slug: r.categorySlug }); }}><ProductCard it={r} /></div>))}
-          </div>
-        </div>
-      )}
-
-      {/* How it works */}
-      <div style={css("margin-top:38px;border-top:1px solid var(--line);padding-top:22px")}>
-        <div style={css("font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--maroon);font-weight:800")}>How it works</div>
-        <h2 style={css("font-family:'Newsreader',serif;font-size:30px;font-weight:500;margin:4px 0 18px")}>Buying used, finally done right.</h2>
-        <div style={css("display:grid;grid-template-columns:repeat(4,1fr);gap:14px")}>
-          {HOW_STEPS.map(([n, t, d, c]) => (
-            <div key={n} style={css("background:var(--tint);border-radius:14px;padding:18px")}>
-              <span style={sx("width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px", { background: c })}>{n}</span>
-              <div style={css("font-family:'Newsreader',serif;font-size:17px;font-weight:600;margin-top:12px")}>{t}</div>
-              <div style={css("font-size:12.5px;color:var(--muted);line-height:1.45;margin-top:5px")}>{d}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* FAQ */}
-      <div style={css("margin-top:38px;border-top:1px solid var(--line);padding-top:22px;max-width:820px")}>
-        <div style={css("font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--maroon);font-weight:800")}>FAQ</div>
-        <h2 style={css("font-family:'Newsreader',serif;font-size:30px;font-weight:500;margin:4px 0 12px")}>Questions, answered.</h2>
-        {FAQS.map(([q, a], i) => (
-          <div key={i} style={css("border-top:1px solid var(--line)")}>
-            <div onClick={() => setFaqOpen(faqOpen === i ? null : i)} style={css("display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 0;cursor:pointer")}>
-              <span style={css("font-size:15px;font-weight:700")}>{q}</span>
-              <span style={sx("width:26px;height:26px;flex:0 0 auto;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800", faqOpen === i ? { background: "var(--maroon)", color: "#fff" } : { background: "var(--putty)", color: "var(--ink)" })}>{faqOpen === i ? "–" : "+"}</span>
-            </div>
-            {faqOpen === i && <p style={css("font-size:14px;color:var(--muted);line-height:1.55;padding:0 0 16px")}>{a}</p>}
-          </div>
-        ))}
-      </div>
-
-      {/* Ask the seller */}
-      <div style={css("margin-top:38px;border-top:1px solid var(--line);padding-top:22px;max-width:820px")}>
-        <h2 style={css("font-family:'Newsreader',serif;font-size:26px;font-weight:500")}>Ask the Seller</h2>
-        <p style={css("color:var(--muted);font-size:13.5px;margin:2px 0 14px")}>Routed and answered through Commonplace — buyers and sellers never message each other directly.</p>
-        <div style={css("border:1px solid var(--line);border-radius:14px;padding:16px;background:var(--paper)")}>
-          <textarea value={question} onChange={(e) => setQuestion(e.target.value)} rows={3} placeholder="Ask about condition, accessories…" style={css("width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-size:14px;outline:none;resize:vertical;line-height:1.4")} />
-          <div style={css("display:flex;justify-content:flex-end;margin-top:10px")}>
-            <button style={sx("border:none;border-radius:9px;padding:9px 18px;font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer", question.trim() ? { background: "var(--maroon)", color: "#fff" } : { background: "var(--putty)", color: "var(--muted)" })}>Ask via Commonplace</button>
-          </div>
-        </div>
-      </div>
+      <div onClick={onClose} style={css("position:absolute;top:18px;right:22px;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;cursor:pointer")}><Close stroke="#fff" strokeWidth={2.4} /></div>
     </div>
   );
 }
@@ -989,11 +852,8 @@ function CreateModal({ onClose }: { onClose: () => void }) {
           {/* Pickup address (Google Maps) */}
           <div>
             <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>Pickup address <span style={css("color:var(--red)")}>*</span></div>
-            <div style={css("position:relative")}>
-              <span style={css("position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--maroon)")}><Pin size={16} stroke="var(--maroon)" /></span>
-              <input value={pickup} onChange={(e) => setPickup(e.target.value)} placeholder="Start typing your address…" style={sx(FIELD_INPUT, "padding-left:36px")} />
-            </div>
-            <div style={css("font-size:11px;color:var(--muted);line-height:1.4;margin-top:4px")}>Where we pick up. Address autocomplete + map pin use Google Maps (Places).</div>
+            <AddressAutocomplete value={pickup} onChange={setPickup} onSelect={(sel) => setPickup(sel.formatted)} placeholder="Start typing your address…" />
+            <div style={css("font-size:11px;color:var(--muted);line-height:1.4;margin-top:4px")}>Where we pick up. Autocomplete uses Google Maps Places when configured.</div>
           </div>
 
           {/* Photos + category-specific recommendations */}
