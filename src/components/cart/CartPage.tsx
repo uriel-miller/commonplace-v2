@@ -1,295 +1,238 @@
 "use client";
 
+import { useState } from "react";
 import { css, sx, Hoverable } from "@/lib/design/css";
 import { formatPrice, type Listing } from "@/lib/listing";
-import { Pin, Close, ChevronLeft } from "@/components/marketplace/icons";
 import { useCart, type CartItem } from "./CartProvider";
 
+/**
+ * Full cart page — a faithful port of the live trycommonplace.com /cart/
+ * (Shoptimizer WooCommerce) view. Shoppers land here after adding an item.
+ *
+ * Live layout reproduced 1:1:
+ *  - "Cart" heading (52px), left column of minimalist line-item rows + coupon.
+ *  - Right summary column (plain rows, no card): Subtotal, Shipment/Delivery
+ *    with the deliver-to address + "Change address", the blue "Request this
+ *    item" fee-saver callout (#9FCAFB / #273699), the $1 Deposit line, Total,
+ *    plum "Proceed to checkout" (6px radius, lock), express pay + trust badges.
+ *
+ * Robust by construction: every value is guarded (missing images, empty cart,
+ * NaN prices, unhydrated store) so nothing here can throw to the shopper.
+ */
+
 export interface CartPageProps {
-  /** Back-to-browsing affordance (breadcrumb + empty-state button). */
   onBrowse?: () => void;
-  /** Fires when the buyer taps the checkout CTA. */
   onCheckout?: () => void;
-  /** Open a specific listing (line-item title/image click). */
   onOpenProduct?: (listing: Listing) => void;
-}
-
-/** Small tile-price formatter with cents, for the "$1 due today" line. */
-function formatUsdCents(cents: number): string {
-  return `$${(cents / 100).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
-
-const PROTECTIONS: readonly [string, string, string, string][] = [
-  ["FREE white-glove delivery & install", "var(--blueBg)", "var(--blueInk)", "Brought inside, to the room you choose."],
-  ["Inspect before you pay a cent", "var(--tint)", "var(--maroon)", "Only $1 today — test it, then pay the rest."],
-  ["2-month warranty included", "var(--yellowBg)", "var(--gold)", "Coverage on every order, at no cost."],
-  ["Verified sellers, human support", "#efe7f3", "var(--purple)", "Every item vetted; real people on call."],
-];
-
-/* ------------------------------- Quantity stepper ------------------------------- */
-function QtyStepper({ qty, onDec, onInc }: { qty: number; onDec: () => void; onInc: () => void }) {
-  const btn =
-    "width:30px;height:30px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:var(--paper);border:none;color:var(--ink);cursor:pointer;font-family:inherit;font-size:16px;font-weight:700;line-height:1";
-  return (
-    <div style={css("display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--paper)")}>
-      <Hoverable as="button" type="button" aria-label="Decrease quantity" onClick={onDec} styles={btn} hover="background:var(--putty)">–</Hoverable>
-      <span style={css("min-width:34px;text-align:center;font-size:13.5px;font-weight:700;color:var(--ink)")}>{qty}</span>
-      <Hoverable as="button" type="button" aria-label="Increase quantity" onClick={onInc} styles={btn} hover="background:var(--putty)">+</Hoverable>
-    </div>
-  );
+  /** Deliver-to line (city/address). Falls back to a generic prompt. */
+  deliverTo?: string;
+  /** Opens the location picker to change the delivery address. */
+  onChangeAddress?: () => void;
+  /** Opens the "request this item near me" flow. */
+  onRequestItem?: (listing: Listing) => void;
 }
 
 /* ------------------------------- Line item ------------------------------- */
-function CartLine({ item, onOpen }: { item: CartItem; onOpen?: () => void }) {
+function CartLine({ item, onOpen, first }: { item: CartItem; onOpen?: () => void; first: boolean }) {
   const { updateQty, remove } = useCart();
   const { listing, qty } = item;
-  const img = listing.images[0];
-  const lineTotal = listing.priceCents * qty;
+  const img = listing.images?.[0];
+  const price = Number.isFinite(listing.priceCents) ? listing.priceCents : 0;
 
   return (
-    <div style={css("display:flex;gap:14px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px")}>
-      {/* Thumbnail */}
-      <div
-        onClick={onOpen}
-        style={sx(
-          "width:96px;height:96px;flex:0 0 auto;border-radius:10px;overflow:hidden;position:relative;background:repeating-linear-gradient(135deg,#EDE4D6 0 12px,#E5DACA 12px 24px)",
-          onOpen ? "cursor:pointer" : "",
-        )}
+    <div style={sx("display:flex;align-items:center;gap:14px;padding:18px 4px", !first && "border-top:1px solid var(--line)")}>
+      {/* Remove */}
+      <Hoverable
+        as="button"
+        type="button"
+        aria-label={`Remove ${listing.title}`}
+        title="Remove"
+        onClick={() => remove(listing.id)}
+        styles="width:26px;height:26px;flex:0 0 auto;border:none;background:transparent;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;color:var(--muted)"
+        hover="background:var(--putty);color:var(--red)"
       >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M10 11v6M14 11v6" /></svg>
+      </Hoverable>
+
+      {/* Thumb */}
+      <div onClick={onOpen} style={sx("width:52px;height:52px;flex:0 0 auto;border-radius:8px;overflow:hidden;background:repeating-linear-gradient(135deg,#EDE4D6 0 10px,#E5DACA 10px 20px)", onOpen ? "cursor:pointer" : "")}>
         {img ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={img} alt={listing.title} loading="lazy" style={css("position:absolute;inset:0;width:100%;height:100%;object-fit:cover")} />
-        ) : (
-          <div style={css("position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:8px")}>
-            <span style={css("font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:9px;letter-spacing:.1em;color:#9a8c78;text-align:center;text-transform:uppercase")}>{listing.categoryName}</span>
-          </div>
-        )}
+          <img src={img} alt="" loading="lazy" style={css("width:100%;height:100%;object-fit:cover")} />
+        ) : null}
       </div>
 
-      {/* Details */}
-      <div style={css("flex:1;min-width:0;display:flex;flex-direction:column")}>
-        <div style={css("display:flex;align-items:flex-start;gap:10px")}>
-          <Hoverable
-            as="div"
-            onClick={onOpen}
-            styles={sx(
-              "flex:1;min-width:0;font-family:'Reckless','Newsreader',serif;font-size:15px;font-weight:500;line-height:1.25",
-              onOpen ? "cursor:pointer" : "",
-            )}
-            hover={onOpen ? "color:var(--maroon)" : undefined}
-          >
-            {listing.title}
-          </Hoverable>
-          <Hoverable
-            as="button"
-            type="button"
-            aria-label={`Remove ${listing.title}`}
-            title="Remove"
-            onClick={() => remove(listing.id)}
-            styles="width:28px;height:28px;flex:0 0 auto;border:none;background:transparent;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0"
-            hover="background:var(--putty)"
-          >
-            <Close size={15} stroke="var(--muted)" />
-          </Hoverable>
-        </div>
+      {/* Title */}
+      <Hoverable as="div" onClick={onOpen}
+        styles={sx("flex:1;min-width:0;font-size:15px;font-weight:600;color:var(--ink);line-height:1.35", onOpen ? "cursor:pointer" : "")}
+        hover={onOpen ? "color:var(--maroon)" : undefined}>
+        {listing.title}
+      </Hoverable>
 
-        <div style={css("display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px")}>
-          {listing.condition && (
-            <span style={css("font-size:10.5px;font-weight:700;color:var(--ink);background:var(--putty);border:1px solid var(--line);border-radius:20px;padding:2px 9px")}>{listing.condition}</span>
-          )}
-          {listing.location && (
-            <span style={css("display:flex;align-items:center;gap:3px;font-size:11.5px;color:var(--muted)")}>
-              <Pin size={12} />{listing.location}
-            </span>
-          )}
-        </div>
-
-        <div style={css("flex:1")} />
-
-        <div style={css("display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:10px")}>
-          <QtyStepper
-            qty={qty}
-            onDec={() => updateQty(listing.id, qty - 1)}
-            onInc={() => updateQty(listing.id, qty + 1)}
-          />
-          <div style={css("text-align:right")}>
-            <div style={css("font-size:16px;font-weight:800;letter-spacing:-.3px")}>{formatPrice(lineTotal)}</div>
-            {qty > 1 && (
-              <div style={css("font-size:11px;color:var(--muted);margin-top:1px")}>{formatPrice(listing.priceCents)} each</div>
-            )}
-          </div>
-        </div>
+      {/* Qty */}
+      <div style={css("display:inline-flex;align-items:center;border:1px solid #dcdcdc;border-radius:5px;overflow:hidden;flex:0 0 auto")}>
+        <Hoverable as="span" onClick={() => updateQty(listing.id, qty - 1)} styles="padding:5px 10px;cursor:pointer;color:var(--muted);font-size:15px;user-select:none" hover="background:var(--putty)">−</Hoverable>
+        <span style={css("padding:5px 4px;min-width:26px;text-align:center;font-size:14px;color:var(--ink)")}>{qty}</span>
+        <Hoverable as="span" onClick={() => updateQty(listing.id, qty + 1)} styles="padding:5px 10px;cursor:pointer;color:var(--muted);font-size:15px;user-select:none" hover="background:var(--putty)">+</Hoverable>
       </div>
-    </div>
-  );
-}
 
-/* ------------------------------- Empty state ------------------------------- */
-function EmptyCart({ onBrowse }: { onBrowse?: () => void }) {
-  return (
-    <div style={css("max-width:520px;margin:40px auto;text-align:center;padding:20px")}>
-      <div style={css("width:74px;height:74px;margin:0 auto 18px;border-radius:50%;background:var(--blueBg);display:flex;align-items:center;justify-content:center")}>
-        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--blueInk)" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="9" cy="21" r="1.4" />
-          <circle cx="18" cy="21" r="1.4" />
-          <path d="M1 1h3l2.6 12.4a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 2-1.6L23 6H6" />
-        </svg>
-      </div>
-      <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:26px;font-weight:500;letter-spacing:-.4px;margin-bottom:6px")}>Your cart is empty</h2>
-      <p style={css("color:var(--muted);font-size:14px;line-height:1.55;margin-bottom:20px")}>
-        Reserve anything for just $1 today — we deliver it white-glove, and you only pay the rest once you&apos;ve inspected it at home.
-      </p>
-      {onBrowse && (
-        <Hoverable
-          as="button"
-          type="button"
-          onClick={onBrowse}
-          styles="background:var(--maroon);color:#fff;border:none;border-radius:12px;padding:13px 24px;font-size:14.5px;font-weight:800;cursor:pointer;font-family:inherit"
-          hover="filter:brightness(1.08)"
-        >
-          Start browsing
-        </Hoverable>
-      )}
+      {/* Price */}
+      <div style={css("font-size:15px;font-weight:600;color:var(--ink);white-space:nowrap;min-width:92px;text-align:right")}>{formatPrice(price * qty)}</div>
     </div>
   );
 }
 
 /* ------------------------------- Summary row ------------------------------- */
-function SummaryRow({ label, value, sub, strong }: { label: string; value: string; sub?: string; strong?: boolean }) {
+function Row({ label, value, strong, muted }: { label: React.ReactNode; value: React.ReactNode; strong?: boolean; muted?: boolean }) {
   return (
-    <div style={css("display:flex;align-items:flex-start;justify-content:space-between;gap:12px")}>
-      <div>
-        <div style={sx("font-size:14px", strong ? "font-weight:800;color:var(--ink)" : "color:var(--muted)")}>{label}</div>
-        {sub && <div style={css("font-size:11.5px;color:var(--muted);line-height:1.4;margin-top:1px")}>{sub}</div>}
-      </div>
-      <div style={sx("white-space:nowrap", strong ? "font-size:16px;font-weight:800;letter-spacing:-.3px" : "font-size:14px;font-weight:700;color:var(--ink)")}>{value}</div>
+    <div style={css("display:flex;align-items:baseline;justify-content:space-between;gap:14px")}>
+      <span style={sx(strong ? "font-size:18px;font-weight:700;color:var(--ink)" : "font-size:15px;color:var(--ink)", muted && "color:var(--muted)")}>{label}</span>
+      <span style={sx(strong ? "font-size:18px;font-weight:800;color:var(--ink)" : "font-size:15px;font-weight:600;color:var(--ink);white-space:nowrap", muted && "color:var(--muted);font-weight:400")}>{value}</span>
     </div>
   );
 }
 
 /* ------------------------------- Cart page ------------------------------- */
-export function CartPage({ onBrowse, onCheckout, onOpenProduct }: CartPageProps) {
+export function CartPage({ onBrowse, onCheckout, onOpenProduct, deliverTo, onChangeAddress, onRequestItem }: CartPageProps) {
   const { items, count, subtotalCents, dueTodayCents, dueOnDeliveryCents, hydrated } = useCart();
+  const [coupon, setCoupon] = useState("");
+  const [couponMsg, setCouponMsg] = useState<string | null>(null);
 
-  // Avoid rendering an empty/populated flash before localStorage is read.
+  const due = Number.isFinite(dueTodayCents) ? dueTodayCents : 100;
+  const balance = Number.isFinite(dueOnDeliveryCents) ? dueOnDeliveryCents : Math.max(0, subtotalCents - due);
+
   if (!hydrated) {
+    return <div style={css("max-width:1120px;margin:0 auto;padding:60px 20px;text-align:center;color:var(--muted);font-size:14px")}>Loading your cart…</div>;
+  }
+
+  const Heading = (
+    <h1 style={css("font-family:'Roobert','Inter Tight',sans-serif;font-size:clamp(34px,5vw,52px);font-weight:500;letter-spacing:-.5px;color:var(--ink);margin-bottom:22px")}>Cart</h1>
+  );
+
+  if (!items || items.length === 0) {
     return (
-      <div style={css("max-width:1040px;padding:60px 20px;text-align:center;color:var(--muted);font-size:14px")}>
-        Loading your cart…
+      <div style={css("max-width:1120px;margin:0 auto;padding:34px 22px 80px")}>
+        {Heading}
+        <div style={css("padding:56px 24px;text-align:center;color:var(--muted)")}>
+          <div style={css("font-size:16px;margin-bottom:18px")}>Your cart is currently empty.</div>
+          <Hoverable as="button" onClick={onBrowse}
+            styles="background:var(--maroon);color:#fff;border:none;border-radius:6px;padding:13px 26px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit"
+            hover="filter:brightness(1.08)">
+            Return to shop
+          </Hoverable>
+        </div>
       </div>
     );
   }
 
-  if (items.length === 0) {
-    return (
-      <div style={css("max-width:1040px")}>
-        {onBrowse && (
-          <div style={css("display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:14px")}>
-            <Hoverable as="a" onClick={onBrowse} styles="color:var(--blueInk);font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px" hover="color:var(--maroon)"><ChevronLeft stroke="currentColor" />Browse</Hoverable>
-            <span style={css("color:var(--muted)")}>/ Cart</span>
-          </div>
-        )}
-        <EmptyCart onBrowse={onBrowse} />
-      </div>
-    );
+  function applyCoupon() {
+    const code = coupon.trim();
+    if (!code) return;
+    setCouponMsg(`“${code}” will be validated at checkout.`);
   }
 
   return (
-    <div style={css("max-width:1040px")}>
-      {/* Breadcrumb */}
-      {onBrowse && (
-        <div style={css("display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px")}>
-          <Hoverable as="a" onClick={onBrowse} styles="color:var(--blueInk);font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px" hover="color:var(--maroon)"><ChevronLeft stroke="currentColor" />Browse</Hoverable>
-          <span style={css("color:var(--muted)")}>/ Cart</span>
-        </div>
-      )}
+    <div style={css("max-width:1120px;margin:0 auto;padding:34px 22px 90px")}>
+      {Heading}
 
-      <div style={css("display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:18px")}>
+      <div style={css("display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:48px;align-items:start")} data-cart-grid>
+        {/* ---------------- Left: items + coupon ---------------- */}
         <div>
-          <h1 style={css("font-family:'Reckless','Newsreader',serif;font-size:30px;font-weight:500;letter-spacing:-.4px;line-height:1.1")}>Your cart</h1>
-          <p style={css("color:var(--muted);font-size:13px;margin-top:2px")}>{count} item{count === 1 ? "" : "s"} reserved · pay just $1 today</p>
-        </div>
-      </div>
-
-      <div style={css("display:grid;grid-template-columns:1.5fr 1fr;gap:22px;align-items:start")}>
-        {/* Line items */}
-        <div style={css("display:flex;flex-direction:column;gap:11px")}>
-          {items.map((item) => (
-            <CartLine
-              key={item.listing.id}
-              item={item}
-              onOpen={onOpenProduct ? () => onOpenProduct(item.listing) : undefined}
-            />
-          ))}
-
-          {/* $1 model explainer */}
-          <div style={css("display:flex;align-items:center;gap:13px;background:#F9AEB7;border:1px solid #f2939e;border-radius:12px;padding:12px 16px;margin-top:2px")}>
-            <span style={css("width:34px;height:34px;flex:0 0 auto;border-radius:50%;background:var(--maroon);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px")}>$1</span>
-            <div style={css("font-size:13px;line-height:1.45")}>
-              <b>Pay $1 upfront · the rest on delivery.</b> Your dollar reserves everything above. We deliver it white-glove and only charge the balance after you&apos;ve inspected it at home — no meetups, no risk.
-            </div>
+          <div style={css("display:flex;flex-direction:column")}>
+            {items.map((item, i) => (
+              <CartLine key={item.listing.id} item={item} first={i === 0}
+                onOpen={onOpenProduct ? () => onOpenProduct(item.listing) : undefined} />
+            ))}
           </div>
+
+          {/* Coupon */}
+          <div style={css("margin-top:22px;display:flex;gap:10px;max-width:360px")}>
+            <input value={coupon} onChange={(e) => { setCoupon(e.target.value); setCouponMsg(null); }} placeholder="Coupon code"
+              style={css("flex:1;border:1px solid #d6d6d6;border-radius:4px;padding:11px 13px;font-size:14px;outline:none;font-family:inherit;color:var(--ink)")} />
+            <Hoverable as="button" onClick={applyCoupon}
+              styles="border:1px solid #d6d6d6;background:#fff;color:var(--ink);border-radius:4px;padding:0 18px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap"
+              hover="background:var(--putty)">Apply coupon</Hoverable>
+          </div>
+          {couponMsg && <div style={css("font-size:12.5px;color:var(--green);margin-top:8px")}>{couponMsg}</div>}
         </div>
 
-        {/* Order summary */}
-        <div style={css("position:sticky;top:6px;display:flex;flex-direction:column;gap:12px")}>
-          <div style={css("background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:18px")}>
-            <div style={css("font-size:16px;font-weight:800;margin-bottom:14px")}>Order summary</div>
+        {/* ---------------- Right: summary ---------------- */}
+        <div style={css("display:flex;flex-direction:column;gap:16px")}>
+          <Row label="Subtotal" value={formatPrice(subtotalCents)} />
 
-            <div style={css("display:flex;flex-direction:column;gap:11px")}>
-              <SummaryRow label={`Subtotal (${count} item${count === 1 ? "" : "s"})`} value={formatPrice(subtotalCents)} />
-              <SummaryRow label="Delivery & install" value="FREE" />
+          <div style={css("height:1px;background:var(--line)")} />
+
+          {/* Shipment */}
+          <div>
+            <div style={css("font-size:15px;font-weight:700;color:var(--ink);margin-bottom:10px")}>Shipment</div>
+            <div style={css("display:flex;align-items:center;gap:9px")}>
+              <span style={css("width:15px;height:15px;flex:0 0 auto;border-radius:50%;border:4px solid var(--maroon);box-shadow:inset 0 0 0 2px #fff")} />
+              <span style={css("flex:1;font-size:15px;font-weight:600;color:var(--ink)")}>Delivery:</span>
+              <span style={css("font-size:15px;font-weight:600;color:var(--ink)")}>Calculated at checkout</span>
             </div>
-
-            <div style={css("height:1px;background:var(--line);margin:14px 0")} />
-
-            <div style={css("display:flex;flex-direction:column;gap:12px")}>
-              <SummaryRow label="Due today" sub="A $1 deposit reserves your order" value={formatUsdCents(dueTodayCents)} strong />
-              <SummaryRow label="Rest on delivery" sub="Charged only after you inspect at home" value={formatPrice(dueOnDeliveryCents)} />
+            <div style={css("font-size:13.5px;color:var(--ink);margin-top:10px;line-height:1.5")}>
+              {deliverTo ? <>Shipping to <b>{deliverTo}</b>.</> : "Add your delivery address at checkout."}
             </div>
+            {onChangeAddress && (
+              <Hoverable as="span" onClick={onChangeAddress} styles="display:inline-block;margin-top:4px;font-size:13.5px;color:var(--ink);text-decoration:underline;cursor:pointer" hover="color:var(--maroon)">Change address</Hoverable>
+            )}
+          </div>
 
-            <Hoverable
-              as="button"
-              type="button"
-              onClick={onCheckout}
-              styles="width:100%;margin-top:16px;background:var(--maroon);color:#fff;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px"
-              hover="filter:brightness(1.08)"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="5" width="18" height="14" rx="2.5" />
-                <path d="M3 10h18" />
-              </svg>
-              Checkout · pay $1 today
-            </Hoverable>
+          {/* Blue "Request this item" fee-saver callout */}
+          <div style={css("background:#9FCAFB;border:0.75px solid #7FB4F0;border-radius:14px;padding:15px 16px;display:flex;flex-direction:column;gap:12px")}>
+            <div style={css("font-size:14px;line-height:1.4;color:#0f1b3d")}>Delivery fee too high? We&apos;ll find you this item near you and save you delivery fees.</div>
+            <Hoverable as="button" type="button"
+              onClick={() => { if (onRequestItem && items[0]) onRequestItem(items[0].listing); }}
+              styles="align-self:flex-start;background:#273699;color:#fff;border:none;border-radius:999px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit"
+              hover="filter:brightness(1.1)">Request this item</Hoverable>
+          </div>
 
-            <div style={css("display:flex;align-items:center;justify-content:center;gap:6px;margin-top:10px;font-size:11.5px;color:var(--muted)")}>
+          {/* Deposit + Total */}
+          <Row label="Deposit ($1.00):" value={<span style={css("color:var(--green)")}>−{formatPrice(Math.max(0, subtotalCents - due))}</span>} muted />
+          <div style={css("height:1px;background:var(--line)")} />
+          <Row label="Total" value={formatPrice(due)} strong />
+          <div style={css("font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:-4px")}>
+            Reserve for {formatPrice(due)} today — the remaining {formatPrice(balance)} (item + delivery) is charged only after you inspect it at home.
+          </div>
+
+          {/* Proceed to checkout */}
+          <Hoverable as="button" type="button" onClick={onCheckout}
+            styles="width:100%;margin-top:4px;background:var(--maroon);color:#fff;border:none;border-radius:6px;padding:15px;font-size:16px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:9px"
+            hover="filter:brightness(1.08)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+            Proceed to checkout
+          </Hoverable>
+
+          {/* Express pay */}
+          <div style={css("text-align:center;font-size:13px;color:var(--muted);margin:2px 0")}>— or —</div>
+          <Hoverable as="button" type="button" onClick={onCheckout}
+            styles="width:100%;background:#2b2b31;color:#fff;border:none;border-radius:6px;padding:14px;font-size:14.5px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:9px"
+            hover="filter:brightness(1.15)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9}><rect x="2" y="5" width="20" height="14" rx="2.5" /><path d="M2 10h20" /></svg>
+            Debit or Credit Card
+          </Hoverable>
+          <Hoverable as="button" type="button" onClick={onCheckout}
+            styles="width:100%;background:#000;color:#fff;border:none;border-radius:6px;padding:14px;font-size:14.5px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px"
+            hover="filter:brightness(1.4)">
+            Checkout with&nbsp;<span style={css("font-weight:700")}>G&nbsp;Pay</span>
+          </Hoverable>
+
+          {/* Trust badges */}
+          <div style={css("display:flex;align-items:center;justify-content:center;gap:14px;margin-top:8px;flex-wrap:wrap;opacity:.85")}>
+            <span style={css("display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--muted)")}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
-              Secure checkout · cancel anytime before delivery
-            </div>
-          </div>
-
-          {/* Protections */}
-          <div style={css("background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px")}>
-            <div style={css("font-size:14px;font-weight:800;margin-bottom:11px")}>Every order is protected</div>
-            <div style={css("display:flex;flex-direction:column;gap:9px")}>
-              {PROTECTIONS.map(([title, bg, fg, blurb]) => (
-                <div key={title} style={css("display:flex;gap:10px;align-items:flex-start")}>
-                  <span style={sx("width:26px;height:26px;flex:0 0 auto;border-radius:8px;display:flex;align-items:center;justify-content:center", { background: bg, color: fg })}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6}><path d="M20 6 9 17l-5-5" /></svg>
-                  </span>
-                  <div style={css("min-width:0")}>
-                    <div style={css("font-size:12.5px;font-weight:700;line-height:1.25")}>{title}</div>
-                    <div style={css("font-size:11.5px;color:var(--muted);line-height:1.4;margin-top:1px")}>{blurb}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
+              100% SECURE
+            </span>
+            <span style={css("font-size:12px;font-weight:800;color:#1a1f71")}>VISA</span>
+            <span style={css("font-size:12px;font-weight:800;color:#eb001b")}>Master<span style={css("color:#f79e1b")}>card</span></span>
+            <span style={css("font-size:12px;font-weight:800;color:#003087")}>Pay<span style={css("color:#009cde")}>Pal</span></span>
           </div>
         </div>
       </div>
+
+      <style>{"@media(max-width:860px){[data-cart-grid]{grid-template-columns:1fr!important;gap:32px!important}}"}</style>
     </div>
   );
 }
+
+export default CartPage;

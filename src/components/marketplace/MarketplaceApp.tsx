@@ -16,6 +16,7 @@ import { formatPrice, type Listing } from "@/lib/listing";
 import { Chevron, ChevronRight, ChevronLeft, Pin, Plus, Close, Search } from "./icons";
 import { useCart } from "@/components/cart/CartProvider";
 import { SideCart } from "@/components/cart/SideCart";
+import { CartPage } from "@/components/cart/CartPage";
 import { AccountPage } from "@/components/pages/account/AccountPage";
 import { SearchPage } from "@/components/pages/search/SearchPage";
 import { resolveInfoPage } from "@/components/pages/info";
@@ -60,10 +61,25 @@ export function MarketplaceApp() {
   const [cartOpen, setCartOpen] = useState(false);
   const cart = useCart();
   const prevCartCount = useRef(cart.count);
+  const cartBaselineSet = useRef(false);
   useEffect(() => {
-    if (cart.count > prevCartCount.current) setCartOpen(true);
+    // Wait until the cart has hydrated from localStorage before reacting, then
+    // capture the hydrated count as the baseline WITHOUT redirecting — otherwise
+    // a returning shopper with items already in their cart gets force-sent to
+    // the cart page on every load. Only a genuine add (count rising after the
+    // baseline) redirects, matching the live site's "redirect to cart" behavior.
+    if (!cart.hydrated) return;
+    if (!cartBaselineSet.current) {
+      cartBaselineSet.current = true;
+      prevCartCount.current = cart.count;
+      return;
+    }
+    if (cart.count > prevCartCount.current) {
+      setCartOpen(false);
+      setView("cart");
+    }
     prevCartCount.current = cart.count;
-  }, [cart.count]);
+  }, [cart.count, cart.hydrated]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [locOpen, setLocOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -353,6 +369,7 @@ export function MarketplaceApp() {
             {view === "product" && product && <ProductPage item={product} onBack={goBrowse} onOpenCategory={(slug, name) => openCategory({ name, slug })} onMakeOffer={() => setOfferOpen(true)} />}
             {view === "search" && <SearchPage initialQuery={searchQuery} onOpenProduct={openProduct} />}
             {view === "account" && <AccountPage onBack={goBrowse} />}
+            {view === "cart" && <CartPage onBrowse={goBrowse} onCheckout={() => setView("checkout")} onOpenProduct={openProduct} deliverTo={locCity} onChangeAddress={() => setLocOpen(true)} onRequestItem={() => setChatOpen(true)} />}
             {view === "checkout" && <CheckoutPage onBack={() => setView("cart")} onBrowse={goBrowse} onViewOrder={(id) => { setActiveOrderId(id); setView("track"); }} />}
             {view === "track" && <OrderTracking orderId={activeOrderId ?? undefined} onBack={goBrowse} onBrowse={goBrowse} />}
             {view === "info" && infoSlug && <InfoView slug={infoSlug} />}
