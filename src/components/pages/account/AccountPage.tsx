@@ -38,20 +38,20 @@ const ROOT_VARS =
 type TabKey =
   | "dashboard"
   | "orders"
-  | "addresses"
-  | "payment-methods"
-  | "account-details"
-  | "my-listings"
-  | "counter-offers";
+  | "wishlist"
+  | "listings"
+  | "offers"
+  | "personal-details"
+  | "referral";
 
 const NAV: { key: TabKey; label: string }[] = [
   { key: "dashboard", label: "Dashboard" },
   { key: "orders", label: "Orders" },
-  { key: "addresses", label: "Addresses" },
-  { key: "payment-methods", label: "Payment methods" },
-  { key: "account-details", label: "Account details" },
-  { key: "my-listings", label: "My Listings" },
-  { key: "counter-offers", label: "Counter Offers" },
+  { key: "wishlist", label: "Wishlist" },
+  { key: "listings", label: "Listings" },
+  { key: "offers", label: "Offers" },
+  { key: "personal-details", label: "Personal Details" },
+  { key: "referral", label: "Refferal" },
 ];
 
 export interface AccountPageProps {
@@ -195,72 +195,53 @@ export function AccountPage({ onBack }: AccountPageProps = {}) {
       {/* Keyframes for the loading spinner (scoped by unique animation name). */}
       <style>{"@keyframes cp-acct-spin{to{transform:rotate(360deg)}}"}</style>
 
-      <div style={css("max-width:1060px;margin:0 auto;padding:22px 22px 72px")}>
-        {onBack && (
-          <div style={css("display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:14px")}>
-            <span onClick={onBack} style={css("color:var(--blueInk);font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px")}>
-              <ChevronLeft stroke="currentColor" />Browse
-            </span>
-            <span style={css("color:var(--muted)")}>/ My account</span>
+      {/* Welcome hero + horizontal tabs (matches the live /account/ dashboard) */}
+      <div style={css("background:var(--cream)")}>
+        <div style={css("max-width:1160px;margin:0 auto;padding:18px 24px 0")}>
+          <div style={css("display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);margin-bottom:26px")}>
+            {onBack ? <span onClick={onBack} style={css("cursor:pointer")}>Home</span> : <span>Home</span>}
+            <span>/</span>
+            <span style={css("color:var(--ink)")}>{NAV.find((n) => n.key === tab)?.label ?? "Dashboard"}</span>
           </div>
-        )}
+          <h1 style={css("font-family:'Reckless','Newsreader',serif;font-size:clamp(30px,4.5vw,44px);font-weight:500;letter-spacing:-.5px;line-height:1.05;margin-bottom:26px")}>
+            Welcome, {CUSTOMER.firstName}!
+          </h1>
+          <div style={css("display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line)")}>
+            <div style={css("display:flex;gap:28px;flex-wrap:wrap")}>
+              {NAV.map((item) => {
+                const active = tab === item.key;
+                return (
+                  <Hoverable key={item.key} as="span" aria-current={active ? "page" : undefined} onClick={() => setTab(item.key)}
+                    styles={sx("padding:0 0 13px;font-size:15px;font-weight:600;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px", active ? { color: "var(--maroon)", borderBottomColor: "var(--maroon)" } : { color: "var(--muted)" })}
+                    hover={active ? "" : "color:var(--ink)"}>{item.label}</Hoverable>
+                );
+              })}
+            </div>
+            <Hoverable as="span" onClick={() => setLoggedOut(true)} styles="padding-bottom:13px;font-size:14px;font-weight:600;color:var(--ink);text-decoration:underline;cursor:pointer" hover="color:var(--maroon)">Logout</Hoverable>
+          </div>
+        </div>
+      </div>
 
-        <h1 style={css("font-family:'Reckless','Newsreader',serif;font-size:30px;font-weight:600;letter-spacing:-.4px;line-height:1.1;margin-bottom:22px")}>
-          My account
-        </h1>
-
+      {/* Active tab content */}
+      <div style={css("max-width:1160px;margin:0 auto;padding:30px 24px 72px")}>
         {loggedOut ? (
           <LoggedOut onBack={onBack} onBackIn={() => { setLoggedOut(false); setTab("dashboard"); }} />
         ) : (
-          <div style={css("display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start")}>
-            {/* LEFT — vertical tab nav */}
-            <nav style={css("flex:0 0 224px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:8px;box-shadow:0 3px 10px rgba(60,10,35,.05)")}>
-              <ul style={css("list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px")}>
-                {NAV.map((item) => {
-                  const active = tab === item.key;
-                  return (
-                    <li key={item.key}>
-                      <Hoverable
-                        as="a"
-                        aria-current={active ? "page" : undefined}
-                        onClick={() => setTab(item.key)}
-                        styles={sx(
-                          "display:block;padding:11px 14px;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;transition:background .14s,color .14s;text-decoration:none",
-                          active
-                            ? { background: "var(--maroon)", color: "#fff" }
-                            : { background: "transparent", color: "var(--ink)" },
-                        )}
-                        hover={active ? "" : "background:var(--putty)"}
-                      >
-                        {item.label}
-                      </Hoverable>
-                    </li>
-                  );
-                })}
-                <li style={css("margin-top:4px;padding-top:6px;border-top:1px solid var(--line)")}>
-                  <Hoverable
-                    as="a"
-                    onClick={() => setLoggedOut(true)}
-                    styles="display:block;padding:11px 14px;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;color:var(--red);text-decoration:none"
-                    hover="background:#F5EAE7"
-                  >
-                    Log out
-                  </Hoverable>
-                </li>
-              </ul>
-            </nav>
-
-            {/* RIGHT — active tab content */}
-            <div style={css("flex:1 1 360px;min-width:0")}>
-              {tab === "dashboard" && <DashboardPanel onNavigate={setTab} onLogout={() => setLoggedOut(true)} />}
-              {tab === "orders" && <OrdersPanel onBrowse={onBack} />}
-              {tab === "addresses" && <AddressesPanel />}
-              {tab === "payment-methods" && <PaymentMethodsPanel />}
-              {tab === "account-details" && <AccountDetailsPanel />}
-              {tab === "my-listings" && <MyListingsPanel onBrowse={onBack} />}
-              {tab === "counter-offers" && <CounterOffersPanel onBrowse={onBack} />}
-            </div>
-          </div>
+          <>
+            {tab === "dashboard" && <DashboardPanel onNavigate={setTab} onBrowse={onBack} />}
+            {tab === "orders" && <OrdersPanel onBrowse={onBack} />}
+            {tab === "wishlist" && <WishlistPanel onBrowse={onBack} />}
+            {tab === "listings" && <MyListingsPanel onBrowse={onBack} />}
+            {tab === "offers" && <CounterOffersPanel onBrowse={onBack} />}
+            {tab === "personal-details" && (
+              <div style={css("display:flex;flex-direction:column;gap:24px")}>
+                <AccountDetailsPanel />
+                <AddressesPanel />
+                <PaymentMethodsPanel />
+              </div>
+            )}
+            {tab === "referral" && <ReferralPanel />}
+          </>
         )}
       </div>
     </div>
@@ -288,38 +269,142 @@ function LoggedOut({ onBack, onBackIn }: { onBack?: () => void; onBackIn: () => 
 /* Dashboard                                                          */
 /* ------------------------------------------------------------------ */
 
-function DashboardPanel({ onNavigate, onLogout }: { onNavigate: (t: TabKey) => void; onLogout: () => void }) {
-  return (
-    <div style={css("background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:24px;box-shadow:0 3px 10px rgba(60,10,35,.05)")}>
-      <p style={css("font-size:15px;line-height:1.6;color:var(--ink);margin-bottom:14px")}>
-        Hello <b>{CUSTOMER.displayName}</b>{" "}
-        (not {CUSTOMER.displayName}?{" "}
-        <LinkA label="Log out" onClick={onLogout} />)
-      </p>
-      <p style={css("font-size:15px;line-height:1.6;color:var(--muted)")}>
-        From your account dashboard you can view your{" "}
-        <LinkA label="recent orders" onClick={() => onNavigate("orders")} />, manage your{" "}
-        <LinkA label="shipping and billing addresses" onClick={() => onNavigate("addresses")} />, and{" "}
-        <LinkA label="edit your password and account details" onClick={() => onNavigate("account-details")} />.
-      </p>
+const WHATS_NEW: { title: string; bg: string; fg: string }[] = [
+  { title: "Latest Pelotons", bg: "#F1DB75", fg: "#5a4a12" },
+  { title: "Home Gyms", bg: "#F9AEB7", fg: "#7a2233" },
+  { title: "Hot Tubs", bg: "#D4C3FF", fg: "#3d2a72" },
+];
 
-      <div style={css("display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:11px;margin-top:22px")}>
-        {([
-          ["Orders", "orders"],
-          ["Addresses", "addresses"],
-          ["My Listings", "my-listings"],
-          ["Counter Offers", "counter-offers"],
-        ] as const).map(([label, key]) => (
-          <Hoverable
-            key={key}
-            onClick={() => onNavigate(key)}
-            styles="background:var(--cream);border:1px solid var(--line);border-radius:11px;padding:15px 16px;cursor:pointer;font-size:14px;font-weight:700;color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:8px"
-            hover="border-color:#d9b7c2;background:var(--paper)"
-          >
-            {label}
-            <span style={css("color:var(--maroon)")}>→</span>
-          </Hoverable>
+function DashboardPanel({ onNavigate, onBrowse }: { onNavigate: (t: TabKey) => void; onBrowse?: () => void }) {
+  const [orders, setOrders] = useState<OrderRecord[] | null>(null);
+  const [offers, setOffers] = useState<OfferDTO[] | null>(null);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch("/api/orders?limit=8", { signal: ctrl.signal });
+        const d: unknown = await res.json();
+        setOrders(d && typeof d === "object" && Array.isArray((d as { orders?: unknown }).orders) ? (d as { orders: OrderRecord[] }).orders : []);
+      } catch (e) { if ((e as { name?: string })?.name !== "AbortError") setOrders([]); }
+    })();
+    (async () => {
+      try {
+        const res = await fetch("/api/offers?role=buyer", { signal: ctrl.signal });
+        const d: unknown = await res.json();
+        setOffers(d && typeof d === "object" && Array.isArray((d as { offers?: unknown }).offers) ? (d as { offers: OfferDTO[] }).offers : []);
+      } catch (e) { if ((e as { name?: string })?.name !== "AbortError") setOffers([]); }
+    })();
+    return () => ctrl.abort();
+  }, []);
+
+  const pending = (offers ?? []).filter((o) => o.status === "accepted");
+
+  return (
+    <div style={css("display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:36px;align-items:start")} data-acct-grid>
+      {/* LEFT */}
+      <div>
+        {/* Pending */}
+        <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:22px;font-weight:600;margin-bottom:16px")}>Pending ( {pending.length} )</h2>
+        {offers === null ? (
+          <Loading label="Loading…" />
+        ) : pending.length === 0 ? (
+          <div style={css("font-size:14px;color:var(--muted);margin-bottom:8px")}>No accepted offers waiting. When a seller accepts your offer, it lands here to check out.</div>
+        ) : (
+          pending.map((o) => {
+            const price = o.counterCents ?? o.amountCents;
+            return (
+              <div key={o.id} style={css("display:flex;gap:16px;background:var(--greenBg);border-radius:16px;padding:14px;margin-bottom:16px;flex-wrap:wrap;align-items:center")}>
+                <div style={css("width:150px;height:110px;flex:0 0 auto;border-radius:10px;overflow:hidden;background:var(--putty)")}>
+                  {o.listingImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={o.listingImage} alt="" style={css("width:100%;height:100%;object-fit:cover")} />
+                  ) : null}
+                </div>
+                <div style={css("flex:1;min-width:180px")}>
+                  <StatusBadge label="Accepted" bg="#F1DB75" color="#5a4a12" />
+                  <div style={css("font-size:15px;font-weight:700;margin:8px 0 4px")}>Your offer was accepted ›</div>
+                  <div style={css("font-size:20px;font-weight:800")}>{formatPrice(price)} <span style={css("font-size:14px;color:var(--muted);text-decoration:line-through;font-weight:500")}>{formatPrice(o.listPriceCents)}</span></div>
+                  <div style={css("font-size:12px;color:var(--muted);margin:4px 0 12px")}>Listing ID: {o.id}</div>
+                  <Hoverable as="button" onClick={onBrowse} styles="width:100%;background:var(--maroon);color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit" hover="filter:brightness(1.08)">Checkout</Hoverable>
+                </div>
+              </div>
+            );
+          })
+        )}
+
+        {/* Payment Status */}
+        <div style={css("display:flex;align-items:center;justify-content:space-between;margin:28px 0 16px")}>
+          <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:22px;font-weight:600")}>Payment Status</h2>
+          <LinkA label="View all" onClick={() => onNavigate("orders")} />
+        </div>
+        {orders === null ? (
+          <Loading label="Loading your orders…" />
+        ) : orders.length === 0 ? (
+          <EmptyState title="No orders yet" text="Reserve something for $1 and it shows here with live status." cta="Browse products" onCta={onBrowse} />
+        ) : (
+          orders.map((o) => {
+            const tone = ORDER_TONE[o.status] ?? ORDER_TONE.reserved;
+            const cancelled = o.status === "cancelled";
+            const done = o.status === "delivered" || o.status === "paid";
+            return (
+              <div key={o.id} style={css("background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:12px")}>
+                <div style={css("display:flex;align-items:center;justify-content:space-between;gap:10px")}>
+                  <span style={css("font-size:15px;font-weight:700")}>Order #{o.id}</span>
+                  <span style={css("font-size:12.5px;color:var(--muted)")}>{fmtDate(o.createdAt)}</span>
+                </div>
+                <div style={css("display:flex;align-items:center;gap:10px;margin-top:10px")}>
+                  <StatusBadge label={STATUS_LABEL[o.status] ?? o.status} bg={tone.bg} color={tone.color} />
+                  <span style={css("font-size:13.5px;color:var(--ink)")}><b>{formatPrice(o.priceCents)}</b></span>
+                </div>
+                <div style={css("height:5px;border-radius:3px;margin-top:12px;overflow:hidden;background:var(--line)")}>
+                  <div style={sx("height:100%;border-radius:3px", cancelled ? { width: "100%", background: "var(--red)" } : { width: done ? "100%" : "55%", background: "var(--blue)" })} />
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* RIGHT — What's New */}
+      <div>
+        <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:22px;font-weight:600;margin-bottom:16px")}>What&apos;s New</h2>
+        {WHATS_NEW.map((c) => (
+          <div key={c.title} style={sx("border-radius:16px;padding:18px;margin-bottom:16px", { background: c.bg })}>
+            <div style={css("height:120px;border-radius:10px;background:rgba(255,255,255,.35);margin-bottom:14px")} />
+            <div style={css("display:flex;align-items:center;justify-content:space-between;gap:10px")}>
+              <span style={sx("font-family:'Reckless','Newsreader',serif;font-size:19px;font-weight:600", { color: c.fg })}>{c.title}</span>
+              <Hoverable as="button" onClick={onBrowse} styles="background:var(--paper);border:none;border-radius:20px;padding:8px 18px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;font-family:inherit" hover="filter:brightness(.97)">Browse</Hoverable>
+            </div>
+          </div>
         ))}
+      </div>
+
+      <style>{"@media(max-width:820px){[data-acct-grid]{grid-template-columns:1fr!important}}"}</style>
+    </div>
+  );
+}
+
+function WishlistPanel({ onBrowse }: { onBrowse?: () => void }) {
+  return (
+    <div>
+      <PageHeading>Wishlist</PageHeading>
+      <EmptyState title="Your wishlist is empty" text="Tap the heart on any listing to save it here and get notified about price drops." cta="Browse products" onCta={onBrowse} />
+    </div>
+  );
+}
+
+function ReferralPanel() {
+  return (
+    <div>
+      <PageHeading>Refer a friend</PageHeading>
+      <div style={css("background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:22px;max-width:560px")}>
+        <p style={css("font-size:15px;line-height:1.6;color:var(--ink);margin-bottom:16px")}>Give friends <b>$50 off</b> their first Commonplace order — you get <b>$50</b> when they buy.</p>
+        <div style={css("font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:7px")}>Your referral code</div>
+        <div style={css("display:flex;gap:10px;flex-wrap:wrap")}>
+          <div style={css("flex:1;min-width:180px;border:1px dashed var(--maroon);border-radius:10px;padding:13px 16px;font-size:17px;font-weight:800;letter-spacing:.06em;color:var(--maroon);text-align:center")}>{CUSTOMER.firstName.toUpperCase()}-CMP</div>
+          <PrimaryButton>Copy link</PrimaryButton>
+        </div>
       </div>
     </div>
   );
