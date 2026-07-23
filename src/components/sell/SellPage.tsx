@@ -190,9 +190,10 @@ interface ChatMsg { role: "user" | "assistant"; content: string; photo?: string 
 /* Component                                                          */
 /* ================================================================== */
 export function SellPage({ onDone }: { onDone?: () => void }) {
-  const [mode, setMode] = useState<"start" | "margot" | "form">("start");
+  const [mode, setMode] = useState<"margot" | "form">("form");
   const [catConfident, setCatConfident] = useState(true);
   const [catEditing, setCatEditing] = useState(false);
+  const [catTouched, setCatTouched] = useState(false); // user manually chose a category
 
   // ---- form state ----
   const [draftId, setDraftId] = useState<string>("");
@@ -208,7 +209,6 @@ export function SellPage({ onDone }: { onDone?: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
-  const [nameInput, setNameInput] = useState("");
   const [bannerOpen, setBannerOpen] = useState(true);
 
   // ---- drafts ----
@@ -251,19 +251,17 @@ export function SellPage({ onDone }: { onDone?: () => void }) {
   }
 
   /**
-   * Sell Now: assign the category automatically when we're confident, so the
-   * seller skips the category step entirely. If unsure, drop into a one-tap
-   * confirm step (with our best guess pre-highlighted) instead of guessing.
+   * As the seller types the item name, auto-assign the category (until they
+   * manually override it). Naming the item is what reveals the rest of the
+   * form, so this keeps the category in lockstep with the title with zero
+   * extra steps.
    */
-  function startSell(rawName: string) {
-    const t = rawName.trim();
-    setTitle(t);
-    const { slug, confident } = categorizeName(t);
-    const sure = !!slug && confident;
+  function onTitleChange(v: string) {
+    setTitle(v);
+    if (catTouched) return;
+    const { slug, confident } = categorizeName(v);
     setCatSlug(slug ?? "");
-    setCatConfident(sure);
-    setCatEditing(!sure); // auto-open the inline picker only when we're unsure
-    setMode("form");
+    setCatConfident(!!slug && confident);
   }
 
   function loadDraft(d: Draft) {
@@ -292,7 +290,7 @@ export function SellPage({ onDone }: { onDone?: () => void }) {
     if (f.category) {
       const hit = ALL_CATS.find((c) => c.name.toLowerCase() === String(f.category).toLowerCase()
         || String(f.category).toLowerCase().includes(c.name.toLowerCase()));
-      if (hit) setCatSlug(hit.slug);
+      if (hit) { setCatSlug(hit.slug); setCatConfident(true); setCatTouched(true); }
     }
     if (f.details) setAns("description", f.details);
   }, []);
@@ -364,7 +362,7 @@ export function SellPage({ onDone }: { onDone?: () => void }) {
         <h1 style={css("font-family:'Reckless','Newsreader',serif;font-size:30px;font-weight:600;margin-bottom:8px")}>Listing submitted</h1>
         <p style={css("font-size:15px;color:var(--muted);margin-bottom:8px")}>“{result}”</p>
         <p style={css("font-size:14px;color:var(--muted);margin-bottom:22px")}>We&apos;ll review it and reach out to schedule pickup — Commonplace handles delivery, inspection, and payment.</p>
-        <Hoverable as="button" onClick={() => { setResult(null); setTitle(""); setCatSlug(""); setCond(""); setAnswers({}); setPrice(""); setPhotos([]); setPickup(""); setDraftId(""); setMode("start"); }}
+        <Hoverable as="button" onClick={() => { setResult(null); setTitle(""); setCatSlug(""); setCatTouched(false); setCond(""); setAnswers({}); setPrice(""); setPhotos([]); setPickup(""); setDraftId(""); setMode("form"); }}
           styles={`background:${PLUM};color:#fff;border:none;border-radius:30px;padding:13px 28px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;margin-right:10px`} hover="filter:brightness(1.08)">List another item</Hoverable>
         {onDone && <Hoverable as="button" onClick={onDone} styles="background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:30px;padding:13px 24px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit" hover="border-color:#d9b7c2">Back to marketplace</Hoverable>}
       </div>
@@ -373,45 +371,92 @@ export function SellPage({ onDone }: { onDone?: () => void }) {
 
   /* ---------------- Margot chat ---------------- */
   if (mode === "margot") {
-    return <MargotChat onBack={() => setMode("start")} onUse={(f) => { applyFields(f); openForm(f.title); }} />;
+    return <MargotChat onBack={() => setMode("form")} onUse={(f) => { applyFields(f); openForm(f.title); }} />;
   }
 
   /* ---------------- Form ---------------- */
-  if (mode === "form") {
-    return (
-      <div style={css("max-width:720px;margin:0 auto;padding:28px 22px 90px")}>
-        <Hoverable as="span" onClick={() => { persistDraft(); setMode("start"); }} styles="display:inline-flex;align-items:center;gap:5px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;margin-bottom:16px" hover="color:var(--ink)">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>Save &amp; back
-        </Hoverable>
-        <h1 style={css("font-family:'Reckless','Newsreader',serif;font-size:32px;font-weight:500;letter-spacing:-.4px;margin-bottom:6px")}>Create your listing</h1>
-        <p style={css("font-size:14px;color:var(--muted);margin-bottom:22px")}>List it once — Commonplace handles pickup, inspection, delivery, and payment.</p>
+  /* ---------------- The sell page (form-first; details reveal after naming the item) ---------------- */
+  const started = title.trim().length > 0;
+  return (
+    <div style={css("max-width:720px;margin:0 auto;padding:26px 22px 90px")}>
+      {/* Back to marketplace */}
+      <Hoverable as="span" onClick={() => { persistDraft(); onDone?.(); }} styles="display:inline-flex;align-items:center;gap:5px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;margin-bottom:16px" hover="color:var(--ink)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>Back
+      </Hoverable>
 
-        <div style={css("display:flex;flex-direction:column;gap:18px")}>
-          {/* Photos + AI */}
-          <div>
-            <FieldLabel label="Photos" help="Add a photo and Margot auto-fills the details for you." />
-            <div style={css("display:flex;flex-wrap:wrap;gap:10px;align-items:center")}>
-              {photos.map((p, i) => (
-                <div key={i} style={css("position:relative;width:78px;height:78px;border-radius:10px;overflow:hidden;border:1px solid var(--line)")}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={p} alt="" style={css("width:100%;height:100%;object-fit:cover")} />
-                  <span onClick={() => setPhotos((prev) => prev.filter((_, x) => x !== i))} style={css("position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;cursor:pointer")}>×</span>
+      {/* AI concierge banner */}
+      {bannerOpen && (
+        <div style={css("display:flex;align-items:center;gap:14px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:20px")}>
+          <div style={css(`width:38px;height:38px;flex:0 0 auto;border-radius:50%;background:${PLUM};display:flex;align-items:center;justify-content:center`)}>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="#fff"><path d="M12 2l1.9 5.1L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.9L12 2z" /></svg>
+          </div>
+          <div style={css("flex:1;min-width:0")}>
+            <div style={css("font-size:14.5px;font-weight:700;color:var(--ink)")}>Try our new AI listing concierge.</div>
+            <div style={css("font-size:13px;color:var(--muted)")}>Drop a photo and Margot fills in the details — usually faster than the form.</div>
+          </div>
+          <Hoverable as="button" onClick={() => setMode("margot")} styles={`background:#5C1F37;color:#fff;border:none;border-radius:999px;padding:9px 18px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap`} hover="filter:brightness(1.12)">Try Margot →</Hoverable>
+          <span onClick={() => setBannerOpen(false)} style={css("cursor:pointer;color:var(--muted);font-size:18px;line-height:1;padding:0 2px")}>×</span>
+        </div>
+      )}
+
+      {/* Resume a draft */}
+      {drafts.length > 0 && (
+        <div style={css("margin-bottom:22px")}>
+          <div style={css("font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:9px")}>Resume a draft</div>
+          <div style={css("display:flex;flex-direction:column;gap:10px")}>
+            {drafts.map((d) => (
+              <div key={d.id} style={css("display:flex;align-items:center;gap:14px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px 16px")}>
+                <Ring pct={draftPct(d)} />
+                <div style={css("flex:1;min-width:0")}>
+                  <div style={css("font-size:14px;font-weight:700;color:" + PLUM)}>Draft{d.price ? `: $${Number(d.price.replace(/[^0-9.]/g, "")).toLocaleString("en-US")}` : ""}</div>
+                  <div style={css("font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{d.title || d.categoryName || "Untitled item"}</div>
                 </div>
-              ))}
-              <label style={sx("width:78px;height:78px;border-radius:10px;border:1.5px dashed var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;color:var(--muted);font-size:11px;text-align:center", "background:var(--paper)")}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>
-                Add
-                <input type="file" accept="image/*" multiple onChange={(e) => onPhotoPick(e.target.files)} style={css("display:none")} />
-              </label>
-              {aiBusy && <span style={css("font-size:13px;color:" + PLUM + ";font-weight:600")}>✨ Margot is reading your photo…</span>}
-            </div>
+                <span onClick={() => deleteDraft(d.id)} style={css("font-size:12px;color:var(--muted);cursor:pointer;text-decoration:underline")}>Discard</span>
+                <Hoverable as="button" onClick={() => loadDraft(d)} styles={`background:${PLUM};color:#fff;border:none;border-radius:999px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit`} hover="filter:brightness(1.08)">Finish</Hoverable>
+              </div>
+            ))}
           </div>
+        </div>
+      )}
 
-          {/* Title */}
-          <div>
-            <FieldLabel label="What are you selling?" help="A short title — our AI polishes it into a clean, searchable listing." />
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Peloton Bike+, Sub-Zero fridge, leather sofa…" style={css(FIELD)} />
+      <h1 style={css("font-family:'Reckless','Newsreader',serif;font-size:32px;font-weight:500;letter-spacing:-.4px;margin-bottom:6px")}>Create your listing</h1>
+      <p style={css("font-size:14px;color:var(--muted);margin-bottom:22px")}>List it once — Commonplace handles pickup, inspection, delivery, and payment.</p>
+
+      <div style={css("display:flex;flex-direction:column;gap:18px")}>
+        {/* Photos + AI (drop a photo and Margot fills everything in) */}
+        <div>
+          <FieldLabel label="Photos" help="Add a photo and Margot auto-fills the details for you." />
+          <div style={css("display:flex;flex-wrap:wrap;gap:10px;align-items:center")}>
+            {photos.map((p, i) => (
+              <div key={i} style={css("position:relative;width:78px;height:78px;border-radius:10px;overflow:hidden;border:1px solid var(--line)")}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p} alt="" style={css("width:100%;height:100%;object-fit:cover")} />
+                <span onClick={() => setPhotos((prev) => prev.filter((_, x) => x !== i))} style={css("position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;cursor:pointer")}>×</span>
+              </div>
+            ))}
+            <label style={sx("width:78px;height:78px;border-radius:10px;border:1.5px dashed var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;color:var(--muted);font-size:11px;text-align:center", "background:var(--paper)")}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>
+              Add
+              <input type="file" accept="image/*" multiple onChange={(e) => onPhotoPick(e.target.files)} style={css("display:none")} />
+            </label>
+            {aiBusy && <span style={css("font-size:13px;color:" + PLUM + ";font-weight:600")}>✨ Margot is reading your photo…</span>}
           </div>
+        </div>
+
+        {/* Item name — reveals the rest of the form */}
+        <div>
+          <FieldLabel label="What are you selling?" help="A short title — our AI polishes it into a clean, searchable listing." />
+          <input value={title} onChange={(e) => onTitleChange(e.target.value)} placeholder="e.g. Peloton Bike+, Sub-Zero fridge, leather sofa…" style={css(FIELD)} />
+        </div>
+
+        {!started && (
+          <div style={css("font-size:13.5px;color:var(--muted);display:flex;align-items:center;gap:7px;padding:2px 2px 6px")}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12l7 7 7-7" /></svg>
+            Name your item above (or drop a photo) and the rest of the form appears.
+          </div>
+        )}
+
+        {started && (<>{/* ---- details ---- */}
 
           {/* Category — auto-assigned from the title; confirm/change inline (no extra step) */}
           <div>
@@ -433,14 +478,14 @@ export function SellPage({ onDone }: { onDone?: () => void }) {
                       {g.items.map((it) => {
                         const on = it.slug === catSlug;
                         return (
-                          <div key={it.slug} onClick={() => { setCatSlug(it.slug); setCatConfident(true); setCatEditing(false); }}
+                          <div key={it.slug} onClick={() => { setCatSlug(it.slug); setCatConfident(true); setCatTouched(true); setCatEditing(false); }}
                             style={sx("padding:7px 12px;border-radius:16px;font-size:12.5px;font-weight:600;cursor:pointer;transition:all .14s", on ? { background: PLUM, color: "#fff", border: `1px solid ${PLUM}` } : { background: "var(--paper)", color: "var(--ink)", border: "1px solid var(--line)" })}>{it.name}</div>
                         );
                       })}
                     </div>
                   </div>
                 ))}
-                <div onClick={() => { setCatSlug(""); setCatConfident(true); setCatEditing(false); }} style={css("font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;text-decoration:underline;margin-top:4px")}>Use a generic listing instead</div>
+                <div onClick={() => { setCatSlug(""); setCatConfident(true); setCatTouched(true); setCatEditing(false); }} style={css("font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;text-decoration:underline;margin-top:4px")}>Use a generic listing instead</div>
               </div>
             )}
           </div>
@@ -494,59 +539,7 @@ export function SellPage({ onDone }: { onDone?: () => void }) {
             styles={`width:100%;background:${PLUM};color:#fff;border:none;border-radius:30px;padding:15px;font-size:16px;font-weight:600;cursor:${submitting ? "default" : "pointer"};font-family:inherit;opacity:${submitting ? ".7" : "1"}`} hover="filter:brightness(1.08)">
             {submitting ? "Submitting…" : "Submit listing"}
           </Hoverable>
-        </div>
-      </div>
-    );
-  }
-
-  /* ---------------- Start ---------------- */
-  return (
-    <div style={css("max-width:760px;margin:0 auto;padding:26px 22px 90px")}>
-      {/* AI concierge banner */}
-      {bannerOpen && (
-        <div style={css("display:flex;align-items:center;gap:14px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:22px")}>
-          <div style={css(`width:38px;height:38px;flex:0 0 auto;border-radius:50%;background:${PLUM};display:flex;align-items:center;justify-content:center`)}>
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="#fff"><path d="M12 2l1.9 5.1L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.9L12 2z" /></svg>
-          </div>
-          <div style={css("flex:1;min-width:0")}>
-            <div style={css("font-size:14.5px;font-weight:700;color:var(--ink)")}>Try our new AI listing concierge.</div>
-            <div style={css("font-size:13px;color:var(--muted)")}>Drop a photo and Margot fills in the details — usually faster than the form.</div>
-          </div>
-          <Hoverable as="button" onClick={() => setMode("margot")} styles={`background:#5C1F37;color:#fff;border:none;border-radius:999px;padding:9px 18px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap`} hover="filter:brightness(1.12)">Try Margot →</Hoverable>
-          <span onClick={() => setBannerOpen(false)} style={css("cursor:pointer;color:var(--muted);font-size:18px;line-height:1;padding:0 2px")}>×</span>
-        </div>
-      )}
-
-      {/* Hero */}
-      <div style={css("background:#F7F1E8;border-radius:24px;padding:40px 32px")}>
-        <h1 style={css("font-family:'Reckless','Newsreader',serif;font-size:34px;font-weight:500;letter-spacing:-.5px;text-align:center;margin-bottom:12px")}>What are you selling today?</h1>
-        <p style={css("font-size:15px;color:var(--muted);text-align:center;max-width:520px;margin:0 auto 26px;line-height:1.5")}>We handle pickup, delivery, and payment — start to finish. Just type in your product name and click “Sell Now”.</p>
-
-        <div style={css("display:flex;gap:8px;background:var(--paper);border:1px solid var(--line);border-radius:40px;padding:6px 6px 6px 8px;max-width:640px;margin:0 auto;align-items:center")}>
-          <input value={nameInput} onChange={(e) => setNameInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && nameInput.trim()) startSell(nameInput); }}
-            placeholder="Write product name e.g. Bowflex Gym or West Elm Table"
-            style={css("flex:1;min-width:0;border:none;outline:none;background:transparent;font-size:14.5px;color:var(--ink);padding:10px 14px;font-family:inherit")} />
-          <Hoverable as="button" onClick={() => startSell(nameInput)}
-            styles={`background:${PLUM};color:#fff;border:none;border-radius:30px;padding:12px 26px;font-size:14.5px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap`} hover="filter:brightness(1.08)">Sell Now</Hoverable>
-        </div>
-
-        {/* Draft listings */}
-        {drafts.length > 0 && (
-          <div style={css("margin-top:30px;display:flex;flex-direction:column;gap:12px")}>
-            {drafts.map((d) => (
-              <div key={d.id} style={css("display:flex;align-items:center;gap:16px;background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:14px 18px")}>
-                <Ring pct={draftPct(d)} />
-                <div style={css("flex:1;min-width:0")}>
-                  <div style={css("font-size:15px;font-weight:700;color:" + PLUM)}>Draft Listing{d.price ? `: $${Number(d.price.replace(/[^0-9.]/g, "")).toLocaleString("en-US")}` : ""}</div>
-                  <div style={css("font-size:13.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{d.title || d.categoryName || "Untitled item"}{d.condition ? ` in ${d.condition.toLowerCase()} condition` : ""}</div>
-                </div>
-                <span onClick={() => deleteDraft(d.id)} style={css("font-size:12px;color:var(--muted);cursor:pointer;text-decoration:underline")}>Discard</span>
-                <Hoverable as="button" onClick={() => loadDraft(d)} styles={`background:${PLUM};color:#fff;border:none;border-radius:999px;padding:9px 20px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit`} hover="filter:brightness(1.08)">Finish</Hoverable>
-              </div>
-            ))}
-          </div>
-        )}
+        </>)}
       </div>
     </div>
   );
