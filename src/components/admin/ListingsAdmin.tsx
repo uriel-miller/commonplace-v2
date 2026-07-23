@@ -17,7 +17,7 @@ import { formatPrice, type Listing } from "@/lib/listing";
 
 /* --------------------------------- styles --------------------------------- */
 
-const HEAD = "font-family:'Newsreader',serif;color:var(--ink);";
+const HEAD = "font-family:'Reckless','Newsreader',serif;color:var(--ink);";
 
 const cell = css("padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle;font-size:13px;color:var(--ink);");
 const th = css(

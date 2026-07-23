@@ -149,7 +149,7 @@ export function OrderTracking({ orderId, order: initial, onBack, onBrowse }: Ord
       <div style={css("max-width:900px")}>
         {Breadcrumb}
         <div style={css("max-width:520px;margin:30px auto;text-align:center;padding:20px")}>
-          <h2 style={css("font-family:'Newsreader',serif;font-size:24px;font-weight:500;letter-spacing:-.4px;margin-bottom:6px")}>Order not found</h2>
+          <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:24px;font-weight:500;letter-spacing:-.4px;margin-bottom:6px")}>Order not found</h2>
           <p style={css("color:var(--muted);font-size:14px;line-height:1.55;margin-bottom:18px")}>{error || "We couldn’t find that order."}</p>
           <div style={css("display:flex;gap:10px;justify-content:center;flex-wrap:wrap")}>
             {id && (
@@ -183,7 +183,7 @@ export function OrderTracking({ orderId, order: initial, onBack, onBrowse }: Ord
           <div style={css("font-size:12px;color:var(--muted);margin-bottom:3px")}>
             Order <span style={css("font-family:ui-monospace,'SF Mono',Menlo,monospace;color:var(--ink);font-weight:700")}>{order.id.slice(0, 8).toUpperCase()}</span> · {formatWhen(order.createdAt)}
           </div>
-          <h1 style={css("font-family:'Newsreader',serif;font-size:26px;font-weight:500;letter-spacing:-.4px;line-height:1.15")}>{order.listingTitle}</h1>
+          <h1 style={css("font-family:'Reckless','Newsreader',serif;font-size:26px;font-weight:500;letter-spacing:-.4px;line-height:1.15")}>{order.listingTitle}</h1>
           {order.deliverCity && (
             <div style={css("display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--muted);margin-top:5px")}>
               <Pin size={13} />Delivering to {order.deliverCity}

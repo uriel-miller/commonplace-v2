@@ -183,7 +183,7 @@ function Confirmation({
           <path d="M20 6 9 17l-5-5" />
         </svg>
       </div>
-      <h1 style={css("font-family:'Newsreader',serif;font-size:30px;font-weight:500;letter-spacing:-.4px;line-height:1.1;margin-bottom:8px")}>You’re reserved</h1>
+      <h1 style={css("font-family:'Reckless','Newsreader',serif;font-size:30px;font-weight:500;letter-spacing:-.4px;line-height:1.1;margin-bottom:8px")}>You’re reserved</h1>
       <p style={css("color:var(--muted);font-size:14.5px;line-height:1.55;margin-bottom:6px")}>
         {formatUsdCents(result.dueTodayCents ?? 100)} charged today. We’ll schedule white-glove delivery — you pay the {formatPrice(result.balanceCents ?? 0)} balance only after you inspect it at home.
       </p>
@@ -321,7 +321,7 @@ export function CheckoutPage({ onBack, onBrowse, onViewOrder }: CheckoutPageProp
     return (
       <div style={css(`max-width:1060px;font-family:${FONT}`)}>
         <div style={css("max-width:520px;margin:40px auto;text-align:center;padding:20px")}>
-          <h2 style={css("font-family:'Newsreader',serif;font-size:26px;font-weight:500;letter-spacing:-.4px;margin-bottom:6px")}>Nothing to check out</h2>
+          <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:26px;font-weight:500;letter-spacing:-.4px;margin-bottom:6px")}>Nothing to check out</h2>
           <p style={css(`color:${SECONDARY};font-size:14px;line-height:1.55;margin-bottom:20px`)}>Your cart is empty — add something you love, then reserve it for $1.</p>
           {onBrowse && (
             <Hoverable

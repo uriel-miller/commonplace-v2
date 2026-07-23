@@ -150,7 +150,7 @@ const WHY_TILES: readonly { tone: string; toneBg: string; title: string; desc: s
 
 const SECTION_INTRO = "font-size:14px;color:var(--muted);line-height:1.55;margin-top:6px;max-width:560px";
 const EYEBROW = "font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--maroon);font-weight:800";
-const SECTION_TITLE = "font-family:'Newsreader',serif;font-size:30px;font-weight:500;letter-spacing:-.4px;line-height:1.12;margin-top:4px";
+const SECTION_TITLE = "font-family:'Reckless','Newsreader',serif;font-size:30px;font-weight:500;letter-spacing:-.4px;line-height:1.12;margin-top:4px";
 const SECTION_WRAP = "margin-top:38px;border-top:1px solid var(--line);padding-top:26px";
 
 /* --------------------------------- payment pills --------------------------------- */
@@ -195,7 +195,7 @@ function RelatedCard({ it, onOpen }: { it: Listing; onOpen: () => void }) {
         )}
       </span>
       <span style={css("display:block;padding:10px 11px 12px")}>
-        <span style={css("display:block;font-family:'Newsreader',serif;font-size:13px;font-weight:500;line-height:1.28;height:33px;overflow:hidden;text-wrap:pretty")}>{it.title}</span>
+        <span style={css("display:block;font-family:'Reckless','Newsreader',serif;font-size:13px;font-weight:500;line-height:1.28;height:33px;overflow:hidden;text-wrap:pretty")}>{it.title}</span>
         <span style={css("display:flex;align-items:baseline;gap:7px;margin-top:6px")}>
           <span style={css("font-size:15px;font-weight:800;letter-spacing:-.3px")}>{formatPrice(it.priceCents)}</span>
           {it.retailCents ? <span style={css("font-size:11px;color:var(--muted);text-decoration:line-through")}>{formatPrice(it.retailCents)}</span> : null}
@@ -348,7 +348,7 @@ export function ProductPage({ item, onBack, onOpenCategory, onMakeOffer }: Produ
           </div>
 
           {/* title */}
-          <h1 style={css("font-family:'Newsreader',serif;font-size:27px;font-weight:500;line-height:1.14;letter-spacing:-.4px;margin-top:8px")}>{item.title}</h1>
+          <h1 style={css("font-family:'Reckless','Newsreader',serif;font-size:27px;font-weight:500;line-height:1.14;letter-spacing:-.4px;margin-top:8px")}>{item.title}</h1>
 
           {/* price */}
           <div style={css("margin-top:14px")}>
@@ -460,7 +460,7 @@ export function ProductPage({ item, onBack, onOpenCategory, onMakeOffer }: Produ
 
       {/* ============================== CUSTOMERS ALSO BOUGHT ============================== */}
       <section style={css(SECTION_WRAP)}>
-        <h2 style={css("font-family:'Newsreader',serif;font-size:26px;font-weight:500;letter-spacing:-.3px;margin-bottom:16px")}>Customers also bought</h2>
+        <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:26px;font-weight:500;letter-spacing:-.3px;margin-bottom:16px")}>Customers also bought</h2>
         {related === null ? (
           <div style={css("display:grid;grid-template-columns:repeat(4,1fr);gap:12px")}>
             {Array.from({ length: 4 }).map((_, i) => (
@@ -493,7 +493,7 @@ export function ProductPage({ item, onBack, onOpenCategory, onMakeOffer }: Produ
           {HOW_STEPS.map(([n, t, d, c]) => (
             <li key={n} style={css("background:var(--tint);border-radius:14px;padding:18px")}>
               <span style={sx("width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px", { background: c })}>{n}</span>
-              <h3 style={css("font-family:'Newsreader',serif;font-size:17px;font-weight:600;margin-top:12px")}>{t}</h3>
+              <h3 style={css("font-family:'Reckless','Newsreader',serif;font-size:17px;font-weight:600;margin-top:12px")}>{t}</h3>
               <p style={css("font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:5px")}>{d}</p>
             </li>
           ))}
@@ -542,7 +542,7 @@ export function ProductPage({ item, onBack, onOpenCategory, onMakeOffer }: Produ
         <div style={css("display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap")}>
           <div>
             <span style={css(EYEBROW)}>By the numbers</span>
-            <h2 style={css("font-family:'Newsreader',serif;font-size:34px;font-weight:500;letter-spacing:-.5px;margin-top:4px")}>Commonplace</h2>
+            <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:34px;font-weight:500;letter-spacing:-.5px;margin-top:4px")}>Commonplace</h2>
           </div>
           {/* decorative art */}
           <svg width="200" height="80" viewBox="0 0 200 80" fill="none" aria-hidden style={css("opacity:.9;max-width:100%")}>
@@ -557,7 +557,7 @@ export function ProductPage({ item, onBack, onOpenCategory, onMakeOffer }: Produ
         <ul style={css("list-style:none;display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:20px;padding:0")}>
           {NUMBERS.map((n) => (
             <li key={n.label} style={sx("border-radius:14px;padding:18px;border:1px solid var(--line)", n.hl ? { background: "var(--maroon)", borderColor: "var(--maroon)" } : { background: "var(--paper)" })}>
-              <strong style={sx("display:block;font-family:'Newsreader',serif;font-size:30px;font-weight:600;letter-spacing:-.5px", n.hl ? { color: "#fff" } : { color: "var(--ink)" })}>{n.stat}</strong>
+              <strong style={sx("display:block;font-family:'Reckless','Newsreader',serif;font-size:30px;font-weight:600;letter-spacing:-.5px", n.hl ? { color: "#fff" } : { color: "var(--ink)" })}>{n.stat}</strong>
               <span style={sx("display:block;font-size:12.5px;line-height:1.4;margin-top:4px", n.hl ? { color: "rgba(255,255,255,.85)" } : { color: "var(--muted)" })}>{n.label}</span>
             </li>
           ))}
@@ -613,7 +613,7 @@ export function ProductPage({ item, onBack, onOpenCategory, onMakeOffer }: Produ
 
       {/* ============================== WHY COMMONPLACE ============================== */}
       <section style={css(SECTION_WRAP)}>
-        <h2 style={css("font-family:'Newsreader',serif;font-size:30px;font-weight:500;letter-spacing:-.4px")}>Why Commonplace?</h2>
+        <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:30px;font-weight:500;letter-spacing:-.4px")}>Why Commonplace?</h2>
         <div style={css("display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px")}>
           {WHY_TILES.map((t) => (
             <Hoverable
@@ -629,7 +629,7 @@ export function ProductPage({ item, onBack, onOpenCategory, onMakeOffer }: Produ
                 </span>
               </span>
               <span style={css("display:block;padding:12px 13px 14px")}>
-                <span style={css("display:block;font-family:'Newsreader',serif;font-size:16px;font-weight:600")}>{t.title}</span>
+                <span style={css("display:block;font-family:'Reckless','Newsreader',serif;font-size:16px;font-weight:600")}>{t.title}</span>
                 <span style={css("display:block;font-size:12px;color:var(--muted);line-height:1.45;margin-top:4px")}>{t.desc}</span>
               </span>
             </Hoverable>
@@ -639,7 +639,7 @@ export function ProductPage({ item, onBack, onOpenCategory, onMakeOffer }: Produ
 
       {/* ============================== ASK THE SELLER ============================== */}
       <section style={sx(SECTION_WRAP, "max-width:840px")}>
-        <h2 style={css("font-family:'Newsreader',serif;font-size:26px;font-weight:500;letter-spacing:-.3px")}>Ask the Seller</h2>
+        <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:26px;font-weight:500;letter-spacing:-.3px")}>Ask the Seller</h2>
         <p style={css("color:var(--muted);font-size:13.5px;margin:4px 0 14px")}>Routed and answered through Commonplace — buyers and sellers never message each other directly.</p>
         <div style={css("border:1px solid var(--line);border-radius:14px;padding:16px;background:var(--paper)")}>
           <textarea

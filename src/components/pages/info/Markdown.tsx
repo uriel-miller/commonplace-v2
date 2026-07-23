@@ -21,10 +21,10 @@ interface ListItem {
 }
 
 const H_STYLES: Record<number, string> = {
-  1: "font-family:'Newsreader',serif;font-weight:600;font-size:2.4rem;line-height:1.12;letter-spacing:-0.01em;color:var(--ink);margin:0 0 1.1rem",
-  2: "font-family:'Newsreader',serif;font-weight:600;font-size:1.55rem;line-height:1.2;color:var(--ink);margin:2.2rem 0 0.7rem",
-  3: "font-family:'Inter Tight',sans-serif;font-weight:600;font-size:1.12rem;color:var(--ink);margin:1.6rem 0 0.5rem",
-  4: "font-family:'Inter Tight',sans-serif;font-weight:600;font-size:1rem;color:var(--maroon);margin:1.2rem 0 0.4rem",
+  1: "font-family:'Reckless','Newsreader',serif;font-weight:600;font-size:2.4rem;line-height:1.12;letter-spacing:-0.01em;color:var(--ink);margin:0 0 1.1rem",
+  2: "font-family:'Reckless','Newsreader',serif;font-weight:600;font-size:1.55rem;line-height:1.2;color:var(--ink);margin:2.2rem 0 0.7rem",
+  3: "font-family:'Roobert','Inter Tight',sans-serif;font-weight:600;font-size:1.12rem;color:var(--ink);margin:1.6rem 0 0.5rem",
+  4: "font-family:'Roobert','Inter Tight',sans-serif;font-weight:600;font-size:1rem;color:var(--maroon);margin:1.2rem 0 0.4rem",
 };
 
 function parseInline(text: string, keyBase: string): ReactNode[] {

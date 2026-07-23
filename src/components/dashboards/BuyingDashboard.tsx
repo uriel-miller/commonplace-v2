@@ -120,7 +120,7 @@ export function BuyingDashboard({ onBrowse }: { onBrowse: () => void }) {
         </a>
         <span style={css("color:var(--muted);font-size:14px")}>/ Buying</span>
       </div>
-      <h2 style={css("font-family:'Newsreader',serif;font-size:30px;font-weight:500;letter-spacing:-.4px;margin-bottom:2px")}>Your buying activity</h2>
+      <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:30px;font-weight:500;letter-spacing:-.4px;margin-bottom:2px")}>Your buying activity</h2>
       <p style={css("color:var(--muted);font-size:14px;margin-bottom:22px")}>Offers you&apos;ve placed and items on the way.</p>
 
       {/* Stat tiles */}
@@ -229,7 +229,7 @@ function SkeletonRows() {
 function EmptyRow({ title, text, onBrowse }: { title: string; text: string; onBrowse: () => void }) {
   return (
     <div style={css("text-align:center;padding:34px 20px;background:#fff;border:1px dashed var(--line);border-radius:12px;margin-bottom:30px")}>
-      <div style={css("font-family:'Newsreader',serif;font-size:18px;color:var(--ink);margin-bottom:4px")}>{title}</div>
+      <div style={css("font-family:'Reckless','Newsreader',serif;font-size:18px;color:var(--ink);margin-bottom:4px")}>{title}</div>
       <div style={css("font-size:13.5px;color:var(--muted);margin-bottom:14px")}>{text}</div>
       <button onClick={onBrowse} style={css("border:1px solid var(--blueInk);background:#fff;color:var(--blueInk);border-radius:9px;padding:9px 16px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit")}>Browse listings</button>
     </div>

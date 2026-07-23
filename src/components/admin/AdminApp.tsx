@@ -33,7 +33,7 @@ export function AdminApp() {
     <div style={css("min-height:100dvh;display:flex;background:var(--cream);color:var(--ink)")}>
       {/* Sidebar */}
       <aside style={css("flex:0 0 232px;background:var(--maroon);color:#fff;display:flex;flex-direction:column;padding:16px 12px")}>
-        <div style={css("font-family:'Newsreader',serif;font-size:20px;font-weight:600;padding:6px 10px 16px")}>Commonplace<span style={css("opacity:.7;font-size:13px;display:block;font-family:'Inter Tight',sans-serif")}>Admin</span></div>
+        <div style={css("font-family:'Reckless','Newsreader',serif;font-size:20px;font-weight:600;padding:6px 10px 16px")}>Commonplace<span style={css("opacity:.7;font-size:13px;display:block;font-family:'Roobert','Inter Tight',sans-serif")}>Admin</span></div>
         {TABS.map((t) => {
           const on = active === t.key;
           return (
@@ -53,7 +53,7 @@ export function AdminApp() {
       {/* Content */}
       <main style={css("flex:1;min-width:0;overflow-y:auto;height:100dvh")}>
         <div style={css("background:var(--paper);border-bottom:1px solid var(--line);padding:16px 26px")}>
-          <div style={css("font-family:'Newsreader',serif;font-size:22px;font-weight:600")}>{TABS.find((t) => t.key === active)?.label}</div>
+          <div style={css("font-family:'Reckless','Newsreader',serif;font-size:22px;font-weight:600")}>{TABS.find((t) => t.key === active)?.label}</div>
         </div>
         <div style={css("padding:24px 26px 60px")}>
           <ActivePanel />

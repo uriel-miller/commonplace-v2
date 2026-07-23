@@ -44,7 +44,7 @@ export function SearchResultCard({
         ) : null}
       </div>
       <div style={css("padding:10px 11px 11px")}>
-        <div style={css("font-family:'Newsreader',serif;font-size:13px;font-weight:500;line-height:1.28;height:33px;overflow:hidden;text-wrap:pretty")}>{item.title}</div>
+        <div style={css("font-family:'Reckless','Newsreader',serif;font-size:13px;font-weight:500;line-height:1.28;height:33px;overflow:hidden;text-wrap:pretty")}>{item.title}</div>
         {item.location && (
           <div style={css("display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--muted);margin-top:5px")}>
             <Pin size={12} />{item.location}

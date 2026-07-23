@@ -206,7 +206,7 @@ export function SearchPage({
       {/* ============================ HEADER ROW ============================ */}
       <div style={css("display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:12px")}>
         <div>
-          <h1 style={css("font-family:'Newsreader',serif;font-size:26px;font-weight:500;letter-spacing:-.4px;line-height:1.1")}>
+          <h1 style={css("font-family:'Reckless','Newsreader',serif;font-size:26px;font-weight:500;letter-spacing:-.4px;line-height:1.1")}>
             {trimmed ? <>Results for <span style={css("color:var(--maroon)")}>&ldquo;{trimmed}&rdquo;</span></> : "Search inventory"}
           </h1>
           <p style={css("color:var(--muted);font-size:13px;margin-top:3px")} aria-live="polite">
@@ -358,7 +358,7 @@ function NoResults({ query, onClearAll, onPick }: { query: string; onClearAll: (
       <div style={css("width:60px;height:60px;margin:0 auto 16px;border-radius:50%;background:var(--tint);color:var(--maroon);display:flex;align-items:center;justify-content:center")}>
         <Search size={26} stroke="currentColor" />
       </div>
-      <div style={css("font-family:'Newsreader',serif;font-size:24px;color:var(--ink);margin-bottom:8px")}>
+      <div style={css("font-family:'Reckless','Newsreader',serif;font-size:24px;color:var(--ink);margin-bottom:8px")}>
         {query ? <>No results for &ldquo;{query}&rdquo;</> : "Nothing matched"}
       </div>
       <p style={css("font-size:14px;color:var(--muted);line-height:1.5;margin-bottom:22px")}>
@@ -390,7 +390,7 @@ function NoResults({ query, onClearAll, onPick }: { query: string; onClearAll: (
 function FilteredEmpty({ onClear }: { onClear: () => void }) {
   return (
     <div style={css("text-align:center;padding:56px 20px;color:var(--muted)")}>
-      <div style={css("font-family:'Newsreader',serif;font-size:22px;color:var(--ink);margin-bottom:6px")}>No items in that range</div>
+      <div style={css("font-family:'Reckless','Newsreader',serif;font-size:22px;color:var(--ink);margin-bottom:6px")}>No items in that range</div>
       <p style={css("font-size:14px;margin-bottom:20px")}>Your price or condition filters are hiding every match. Try widening them.</p>
       <button
         onClick={onClear}
@@ -405,7 +405,7 @@ function FilteredEmpty({ onClear }: { onClear: () => void }) {
 function ErrorState({ onRetry }: { onRetry: () => void }) {
   return (
     <div style={css("text-align:center;padding:56px 20px;color:var(--muted)")}>
-      <div style={css("font-family:'Newsreader',serif;font-size:22px;color:var(--ink);margin-bottom:6px")}>Something went wrong</div>
+      <div style={css("font-family:'Reckless','Newsreader',serif;font-size:22px;color:var(--ink);margin-bottom:6px")}>Something went wrong</div>
       <p style={css("font-size:14px;margin-bottom:20px")}>We couldn&apos;t load results just now. Please try again.</p>
       <button
         onClick={onRetry}

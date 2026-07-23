@@ -109,7 +109,7 @@ export function MarketplaceApp() {
     <div
       style={sx(
         ROOT_VARS,
-        "font-family:'Inter Tight',system-ui,-apple-system,'Helvetica Neue',sans-serif;color:var(--ink);height:100dvh;width:100%;display:flex;flex-direction:column;background:var(--cream);overflow:hidden",
+        "font-family:'Roobert','Inter Tight',system-ui,-apple-system,'Helvetica Neue',sans-serif;color:var(--ink);height:100dvh;width:100%;display:flex;flex-direction:column;background:var(--cream);overflow:hidden",
       )}
     >
       {/* ============================ HEADER ============================ */}
@@ -270,7 +270,7 @@ export function MarketplaceApp() {
                         </span>
                       </div>
                       <div style={css("min-width:0")}>
-                        <div style={css("font-size:12.5px;font-weight:700;font-family:'Newsreader',serif")}>{v.title}</div>
+                        <div style={css("font-size:12.5px;font-weight:700;font-family:'Reckless','Newsreader',serif")}>{v.title}</div>
                         <div style={css("font-size:11px;color:var(--muted);line-height:1.35")}>{v.blurb}</div>
                       </div>
                     </Hoverable>
@@ -330,7 +330,7 @@ export function MarketplaceApp() {
                   <ChevronLeft stroke="currentColor" />All categories
                 </div>
                 <div style={css("padding:13px 14px")}>
-                  <div style={css("font-family:'Newsreader',serif;font-size:19px;font-weight:500;line-height:1.15")}>{category.name}</div>
+                  <div style={css("font-family:'Reckless','Newsreader',serif;font-size:19px;font-weight:500;line-height:1.15")}>{category.name}</div>
                   <div style={css("font-size:12.5px;color:var(--muted);margin-top:3px")}>Browsing live Commonplace inventory</div>
                   <div style={css("height:6px;background:#eee4d8;border-radius:9px;margin-top:10px;overflow:hidden")}>
                     <i style={css("display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--blueInk),var(--gold));transition:width .35s ease")} />
@@ -415,7 +415,7 @@ function ProductCard({ it, tint = "#EDE4D6", tint2 = "#E5DACA" }: { it: Listing;
         ) : null}
       </div>
       <div style={css("padding:10px 11px 11px")}>
-        <div style={css("font-family:'Newsreader',serif;font-size:13px;font-weight:500;line-height:1.28;height:33px;overflow:hidden;text-wrap:pretty")}>{it.title}</div>
+        <div style={css("font-family:'Reckless','Newsreader',serif;font-size:13px;font-weight:500;line-height:1.28;height:33px;overflow:hidden;text-wrap:pretty")}>{it.title}</div>
         {it.location && (
           <div style={css("display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--muted);margin-top:5px")}>
             <Pin size={12} />{it.location}
@@ -464,7 +464,7 @@ function SortSelect({ value, onChange }: { value: string; onChange: (v: string) 
 function EmptyState({ text }: { text: string }) {
   return (
     <div style={css("text-align:center;padding:70px 20px;color:var(--muted)")}>
-      <div style={css("font-family:'Newsreader',serif;font-size:20px;color:var(--ink);margin-bottom:6px")}>Nothing here yet</div>
+      <div style={css("font-family:'Reckless','Newsreader',serif;font-size:20px;color:var(--ink);margin-bottom:6px")}>Nothing here yet</div>
       <div style={css("font-size:14px")}>{text}</div>
     </div>
   );
@@ -503,7 +503,7 @@ function BrowseView({ locCity, onOpenProduct }: { locCity: string; onOpenProduct
       </div>
       <div style={css("display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px")}>
         <div>
-          <h2 style={css("font-family:'Newsreader',serif;font-size:23px;font-weight:500;letter-spacing:-.4px")}>Today&apos;s picks</h2>
+          <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:23px;font-weight:500;letter-spacing:-.4px")}>Today&apos;s picks</h2>
           <p style={css("color:var(--muted);font-size:12.5px;margin-top:1px")}>Verified, inspected, and delivered to {locCity}</p>
         </div>
         <SortSelect value={sort} onChange={setSort} />
@@ -563,11 +563,11 @@ function CategoryView({ catName, categorySlug, onOpenProduct }: { catName: strin
       <div style={css("display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:16px")}>
         <div>
           <div style={css("font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--blueInk);font-weight:700")}>{catName}</div>
-          <h2 style={css("font-family:'Newsreader',serif;font-size:34px;font-weight:500;letter-spacing:-.4px;line-height:1.1")}>Every {catName} we have</h2>
+          <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:34px;font-weight:500;letter-spacing:-.4px;line-height:1.1")}>Every {catName} we have</h2>
         </div>
         <div style={css("display:flex;align-items:center;gap:16px")}>
           <div style={css("font-size:15px;color:var(--muted)")}>
-            <b style={css("color:var(--blueInk);font-size:24px;font-family:'Newsreader',serif;font-weight:600")}>{loading ? "…" : items.length}</b> of {total.toLocaleString()} match
+            <b style={css("color:var(--blueInk);font-size:24px;font-family:'Reckless','Newsreader',serif;font-weight:600")}>{loading ? "…" : items.length}</b> of {total.toLocaleString()} match
           </div>
           <SortSelect value={sort} onChange={setSort} />
         </div>
@@ -615,7 +615,7 @@ function LocationModal({ city, onCity, onClose }: { city: string; onCity: (v: st
     <div style={css("position:fixed;inset:0;background:rgba(25,12,18,.55);display:flex;align-items:center;justify-content:center;z-index:200;animation:fade .15s ease both")}>
       <div style={css("width:440px;max-width:92vw;background:var(--cream);border-radius:20px;box-shadow:0 30px 70px rgba(0,0,0,.4);padding:26px;animation:pop .2s ease both")}>
         <div style={css("display:flex;align-items:center;justify-content:space-between;margin-bottom:18px")}>
-          <div style={css("font-family:'Newsreader',serif;font-size:24px;font-weight:600")}>Select your location</div>
+          <div style={css("font-family:'Reckless','Newsreader',serif;font-size:24px;font-weight:600")}>Select your location</div>
           <div onClick={onClose} style={css("width:32px;height:32px;border-radius:50%;background:rgba(0,0,0,.05);display:flex;align-items:center;justify-content:center;cursor:pointer")}><Close /></div>
         </div>
         <LocationPicker city={city} onCity={onCity} onConfirm={(sel) => { onCity(sel.city); onClose(); }} />
@@ -739,7 +739,7 @@ function CreateModal({ onClose }: { onClose: () => void }) {
     <div style={css("position:fixed;inset:0;background:rgba(25,12,18,.55);display:flex;align-items:center;justify-content:center;z-index:200;animation:fade .15s ease both")}>
       <div style={css("width:540px;max-width:94vw;max-height:90vh;overflow-y:auto;background:var(--cream);border-radius:20px;box-shadow:0 30px 70px rgba(0,0,0,.4);padding:26px")}>
         <div style={css("display:flex;align-items:center;justify-content:space-between;margin-bottom:6px")}>
-          <div style={css("font-family:'Newsreader',serif;font-size:24px;font-weight:600")}>Create a listing</div>
+          <div style={css("font-family:'Reckless','Newsreader',serif;font-size:24px;font-weight:600")}>Create a listing</div>
           <div onClick={onClose} style={css("width:32px;height:32px;border-radius:50%;background:rgba(0,0,0,.05);display:flex;align-items:center;justify-content:center;cursor:pointer")}><Close /></div>
         </div>
         <p style={css("font-size:13px;color:var(--muted);margin-bottom:18px")}>List it once — Commonplace handles pickup, inspection, delivery, and payment.</p>

@@ -79,7 +79,7 @@ function Notice({ children }: { children: React.ReactNode }) {
 
 function PageHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h2 style={css("font-family:'Newsreader',serif;font-size:22px;font-weight:600;letter-spacing:-.3px;color:var(--ink);margin-bottom:16px")}>
+    <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:22px;font-weight:600;letter-spacing:-.3px;color:var(--ink);margin-bottom:16px")}>
       {children}
     </h2>
   );
@@ -131,7 +131,7 @@ function EmptyState({ title, text, cta, onCta }: { title: string; text: string; 
       <div style={css("width:50px;height:50px;margin:0 auto 14px;border-radius:50%;background:var(--putty);display:flex;align-items:center;justify-content:center")}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M4 9h16l-1-4.5H5L4 9Z" /><path d="M5 9v10.5h14V9" /></svg>
       </div>
-      <div style={css("font-family:'Newsreader',serif;font-size:19px;color:var(--ink);margin-bottom:6px")}>{title}</div>
+      <div style={css("font-family:'Reckless','Newsreader',serif;font-size:19px;color:var(--ink);margin-bottom:6px")}>{title}</div>
       <div style={css("font-size:14px;color:var(--muted);max-width:380px;margin:0 auto 16px")}>{text}</div>
       {cta && <PrimaryButton onClick={onCta}>{cta}</PrimaryButton>}
     </div>
@@ -189,7 +189,7 @@ export function AccountPage({ onBack }: AccountPageProps = {}) {
     <div
       style={sx(
         ROOT_VARS,
-        "font-family:'Inter Tight',system-ui,-apple-system,'Helvetica Neue',sans-serif;color:var(--ink);min-height:100dvh;width:100%;background:var(--cream);overflow-y:auto",
+        "font-family:'Roobert','Inter Tight',system-ui,-apple-system,'Helvetica Neue',sans-serif;color:var(--ink);min-height:100dvh;width:100%;background:var(--cream);overflow-y:auto",
       )}
     >
       {/* Keyframes for the loading spinner (scoped by unique animation name). */}
@@ -205,7 +205,7 @@ export function AccountPage({ onBack }: AccountPageProps = {}) {
           </div>
         )}
 
-        <h1 style={css("font-family:'Newsreader',serif;font-size:30px;font-weight:600;letter-spacing:-.4px;line-height:1.1;margin-bottom:22px")}>
+        <h1 style={css("font-family:'Reckless','Newsreader',serif;font-size:30px;font-weight:600;letter-spacing:-.4px;line-height:1.1;margin-bottom:22px")}>
           My account
         </h1>
 
@@ -274,7 +274,7 @@ export function AccountPage({ onBack }: AccountPageProps = {}) {
 function LoggedOut({ onBack, onBackIn }: { onBack?: () => void; onBackIn: () => void }) {
   return (
     <div style={css("text-align:center;padding:56px 22px;background:var(--paper);border:1px solid var(--line);border-radius:16px;max-width:520px;margin:0 auto")}>
-      <div style={css("font-family:'Newsreader',serif;font-size:24px;color:var(--ink);margin-bottom:8px")}>You are now logged out</div>
+      <div style={css("font-family:'Reckless','Newsreader',serif;font-size:24px;color:var(--ink);margin-bottom:8px")}>You are now logged out</div>
       <div style={css("font-size:14px;color:var(--muted);margin-bottom:20px")}>Thanks for stopping by. See you again soon.</div>
       <div style={css("display:flex;gap:10px;justify-content:center;flex-wrap:wrap")}>
         {onBack && <PrimaryButton onClick={onBack}>Return to browsing</PrimaryButton>}

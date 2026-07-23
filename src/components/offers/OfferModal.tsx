@@ -135,7 +135,7 @@ export default function OfferModal({
           <div>
             <div
               style={css(
-                "font-family:'Newsreader',serif;font-size:20px;font-weight:600;color:var(--ink);line-height:1.2",
+                "font-family:'Reckless','Newsreader',serif;font-size:20px;font-weight:600;color:var(--ink);line-height:1.2",
               )}
             >
               Make an offer
@@ -160,7 +160,7 @@ export default function OfferModal({
             <div style={css("padding:14px 0 4px;text-align:center")}>
               <div
                 style={css(
-                  "font-family:'Newsreader',serif;font-size:19px;font-weight:600;color:var(--green);margin-bottom:6px",
+                  "font-family:'Reckless','Newsreader',serif;font-size:19px;font-weight:600;color:var(--green);margin-bottom:6px",
                 )}
               >
                 Offer sent

@@ -90,7 +90,7 @@ function orderedStatuses(byStatus: Record<string, number>): string[] {
 
 /* ---------------------------------- styles ---------------------------------- */
 
-const headingFont = "font-family:'Newsreader',serif";
+const headingFont = "font-family:'Reckless','Newsreader',serif";
 
 /* ------------------------------- subcomponents ------------------------------ */
 

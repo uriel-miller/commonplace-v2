@@ -19,7 +19,7 @@ import { formatPrice, type Listing } from "@/lib/listing";
 
 /* --------------------------------- styles ---------------------------------- */
 
-const HEAD = "font-family:'Newsreader',serif;color:var(--ink);margin:0";
+const HEAD = "font-family:'Reckless','Newsreader',serif;color:var(--ink);margin:0";
 const TH =
   "text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:8px 12px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap";
 const TD = "padding:9px 12px;border-bottom:1px solid var(--line);font-size:14px;color:var(--ink)";

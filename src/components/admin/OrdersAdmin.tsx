@@ -212,7 +212,7 @@ export default function OrdersAdmin() {
         <div>
           <h2
             style={css(
-              "font-family:'Newsreader',serif;font-size:22px;font-weight:600;color:var(--ink);margin:0",
+              "font-family:'Reckless','Newsreader',serif;font-size:22px;font-weight:600;color:var(--ink);margin:0",
             )}
           >
             Orders

@@ -136,7 +136,7 @@ export function SellingDashboard({ onBrowse, onNew }: { onBrowse: () => void; on
       </div>
       <div style={css("display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:22px")}>
         <div>
-          <h2 style={css("font-family:'Newsreader',serif;font-size:30px;font-weight:500;letter-spacing:-.4px;margin-bottom:2px")}>Your seller dashboard</h2>
+          <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:30px;font-weight:500;letter-spacing:-.4px;margin-bottom:2px")}>Your seller dashboard</h2>
           <p style={css("color:var(--muted);font-size:14px")}>Manage listings, review offers, and track payouts.</p>
         </div>
         <button onClick={onNew} style={css("background:var(--blueInk);color:#fff;border:none;border-radius:9px;padding:11px 18px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:7px")}>
@@ -280,7 +280,7 @@ function SkeletonRows({ avatar = false }: { avatar?: boolean }) {
 function EmptyRow({ title, text, action, onAction }: { title: string; text: string; action: string; onAction: () => void }) {
   return (
     <div style={css("text-align:center;padding:34px 20px;background:#fff;border:1px dashed var(--line);border-radius:12px;margin-bottom:30px")}>
-      <div style={css("font-family:'Newsreader',serif;font-size:18px;color:var(--ink);margin-bottom:4px")}>{title}</div>
+      <div style={css("font-family:'Reckless','Newsreader',serif;font-size:18px;color:var(--ink);margin-bottom:4px")}>{title}</div>
       <div style={css("font-size:13.5px;color:var(--muted);margin-bottom:14px;max-width:420px;margin-left:auto;margin-right:auto;line-height:1.5")}>{text}</div>
       <button onClick={onAction} style={css("border:none;background:var(--blueInk);color:#fff;border-radius:9px;padding:9px 16px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px")}>
         <Plus size={15} stroke="#fff" />{action}

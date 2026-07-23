@@ -149,7 +149,7 @@ function VideoCard({ video, onOpen }: { video: LearnVideo; onOpen: () => void })
         </div>
       </div>
       <div style={css("padding:13px 14px 15px")}>
-        <div style={css("font-family:'Newsreader',serif;font-size:16px;font-weight:600;line-height:1.25;color:var(--ink)")}>
+        <div style={css("font-family:'Reckless','Newsreader',serif;font-size:16px;font-weight:600;line-height:1.25;color:var(--ink)")}>
           {video.title}
         </div>
         <div style={css("font-size:12px;color:var(--muted);line-height:1.45;margin-top:6px")}>{video.blurb}</div>
@@ -165,7 +165,7 @@ export function LearnVideos() {
   return (
     <section style={css("margin:0 auto;padding:8px 0")}>
       <div style={css("margin-bottom:16px")}>
-        <div style={css("font-family:'Newsreader',serif;font-size:26px;font-weight:600;letter-spacing:-.3px;color:var(--ink)")}>
+        <div style={css("font-family:'Reckless','Newsreader',serif;font-size:26px;font-weight:600;letter-spacing:-.3px;color:var(--ink)")}>
           Why Commonplace?
         </div>
         <div style={css("font-size:13px;color:var(--muted);margin-top:4px")}>

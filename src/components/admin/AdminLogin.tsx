@@ -34,7 +34,7 @@ export function AdminLogin() {
   return (
     <div style={css("min-height:100dvh;display:flex;align-items:center;justify-content:center;background:var(--cream);padding:24px")}>
       <form onSubmit={submit} style={css("width:380px;max-width:92vw;background:var(--paper);border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 60px rgba(60,10,35,.12);padding:28px")}>
-        <div style={css("font-family:'Newsreader',serif;font-size:24px;font-weight:600;color:var(--maroon)")}>Commonplace Admin</div>
+        <div style={css("font-family:'Reckless','Newsreader',serif;font-size:24px;font-weight:600;color:var(--maroon)")}>Commonplace Admin</div>
         <p style={css("font-size:13px;color:var(--muted);margin:4px 0 18px")}>Enter your admin token to continue.</p>
         <input
           type="password"

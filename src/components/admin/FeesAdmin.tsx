@@ -39,7 +39,7 @@ interface FeeConfig {
 
 /* --------------------------------- styles ---------------------------------- */
 
-const HEAD = "font-family:'Newsreader',serif;color:var(--ink);margin:0";
+const HEAD = "font-family:'Reckless','Newsreader',serif;color:var(--ink);margin:0";
 const CARD =
   "background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:18px";
 const LABEL = "font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em";

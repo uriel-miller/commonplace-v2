@@ -95,7 +95,7 @@ function ContactForm() {
     >
       <h3
         style={css(
-          "font-family:'Newsreader',serif;font-weight:600;font-size:1.35rem;color:var(--ink);margin:0 0 4px",
+          "font-family:'Reckless','Newsreader',serif;font-weight:600;font-size:1.35rem;color:var(--ink);margin:0 0 4px",
         )}
       >
         Send us a message

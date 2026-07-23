@@ -154,7 +154,7 @@ export default function OffersList({
       >
         <div
           style={css(
-            "font-family:'Newsreader',serif;font-size:17px;color:var(--ink);margin-bottom:4px",
+            "font-family:'Reckless','Newsreader',serif;font-size:17px;color:var(--ink);margin-bottom:4px",
           )}
         >
           {role === "seller" ? "No offers yet" : "You haven't made any offers"}

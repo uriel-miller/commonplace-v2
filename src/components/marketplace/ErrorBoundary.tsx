@@ -32,7 +32,7 @@ export class ErrorBoundary extends Component<
     if (this.state.hasError) {
       return (
         <div style={css("padding:70px 20px;text-align:center;color:var(--muted)")}>
-          <div style={css("font-family:'Newsreader',serif;font-size:22px;color:var(--ink);margin-bottom:6px")}>Something went wrong loading this view</div>
+          <div style={css("font-family:'Reckless','Newsreader',serif;font-size:22px;color:var(--ink);margin-bottom:6px")}>Something went wrong loading this view</div>
           <div style={css("font-size:14px;margin-bottom:16px")}>It&apos;s not you — try again or head back to browsing.</div>
           <button onClick={this.reset} style={css("background:var(--maroon);color:#fff;border:none;border-radius:10px;padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit")}>Back to Browse</button>
         </div>

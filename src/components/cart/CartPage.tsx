@@ -76,7 +76,7 @@ function CartLine({ item, onOpen }: { item: CartItem; onOpen?: () => void }) {
             as="div"
             onClick={onOpen}
             styles={sx(
-              "flex:1;min-width:0;font-family:'Newsreader',serif;font-size:15px;font-weight:500;line-height:1.25",
+              "flex:1;min-width:0;font-family:'Reckless','Newsreader',serif;font-size:15px;font-weight:500;line-height:1.25",
               onOpen ? "cursor:pointer" : "",
             )}
             hover={onOpen ? "color:var(--maroon)" : undefined}
@@ -138,7 +138,7 @@ function EmptyCart({ onBrowse }: { onBrowse?: () => void }) {
           <path d="M1 1h3l2.6 12.4a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 2-1.6L23 6H6" />
         </svg>
       </div>
-      <h2 style={css("font-family:'Newsreader',serif;font-size:26px;font-weight:500;letter-spacing:-.4px;margin-bottom:6px")}>Your cart is empty</h2>
+      <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:26px;font-weight:500;letter-spacing:-.4px;margin-bottom:6px")}>Your cart is empty</h2>
       <p style={css("color:var(--muted);font-size:14px;line-height:1.55;margin-bottom:20px")}>
         Reserve anything for just $1 today — we deliver it white-glove, and you only pay the rest once you&apos;ve inspected it at home.
       </p>
@@ -209,7 +209,7 @@ export function CartPage({ onBrowse, onCheckout, onOpenProduct }: CartPageProps)
 
       <div style={css("display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:18px")}>
         <div>
-          <h1 style={css("font-family:'Newsreader',serif;font-size:30px;font-weight:500;letter-spacing:-.4px;line-height:1.1")}>Your cart</h1>
+          <h1 style={css("font-family:'Reckless','Newsreader',serif;font-size:30px;font-weight:500;letter-spacing:-.4px;line-height:1.1")}>Your cart</h1>
           <p style={css("color:var(--muted);font-size:13px;margin-top:2px")}>{count} item{count === 1 ? "" : "s"} reserved · pay just $1 today</p>
         </div>
       </div>
