@@ -5,6 +5,7 @@ import { css, sx, Hoverable } from "@/lib/design/css";
 import { fetchListings } from "@/lib/clientApi";
 import { formatPrice, type Listing } from "@/lib/listing";
 import { useCart } from "@/components/cart/CartProvider";
+import { ProductExtras } from "./ProductExtras";
 
 /**
  * ProductPage — a faithful port of the live trycommonplace.com product page.
@@ -304,6 +305,9 @@ export function ProductPage({ item, onBack, onOpenCategory, onMakeOffer, onOpenP
           )}
         </section>
       )}
+
+      {/* Specifications, delivery, reviews, FAQ */}
+      <ProductExtras item={item} />
 
       {/* Customers also bought */}
       {related && related.length > 0 && (
