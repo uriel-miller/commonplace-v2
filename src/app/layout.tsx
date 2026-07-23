@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Inter_Tight, Newsreader } from "next/font/google";
 import "./globals.css";
-import { SiteHeader } from "@/components/site-header";
-import { SiteFooter } from "@/components/site-footer";
 
 const interTight = Inter_Tight({
   variable: "--font-inter-tight",
@@ -34,12 +32,12 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${interTight.variable} ${newsreader.variable} h-full`}
+      className={`${interTight.variable} ${newsreader.variable}`}
     >
-      <body className="flex min-h-full flex-col bg-cream font-sans text-ink antialiased">
-        <SiteHeader />
-        <main className="flex-1">{children}</main>
-        <SiteFooter />
+      {/* The marketplace is a full-viewport app shell; the shell manages its
+          own internal scrolling, so the document body itself does not scroll. */}
+      <body style={{ height: "100dvh", overflow: "hidden", margin: 0 }}>
+        {children}
       </body>
     </html>
   );
