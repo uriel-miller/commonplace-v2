@@ -28,6 +28,81 @@ const ALL_CATS = CAT_GROUPS.flatMap((g) => g.items);
 const DRAFT_KEY = "cp_sell_drafts_v1";
 
 /* ------------------------------------------------------------------ */
+/* Auto-categorization                                                */
+/* ------------------------------------------------------------------ */
+/**
+ * Map a free-typed product name to a category slug. High-confidence rules
+ * (brand/keyword) come first; a full category-name match is also high
+ * confidence. Anything weaker is returned as a low-confidence guess so we ask
+ * the seller to confirm rather than guessing wrong.
+ */
+const CAT_RULES: ReadonlyArray<readonly [RegExp, string]> = [
+  [/peloton\b.*(bike ?\+|bike ?plus|\bplus\b)/i, "peloton-bike-plus"],
+  [/peloton\b.*(tread ?\+|tread ?plus)/i, "peloton-tread-plus"],
+  [/peloton\b.*(3rd|third)\b/i, "peloton-bike-3rd-gen"],
+  [/peloton\b.*tread/i, "peloton-tread"],
+  [/peloton\b.*row/i, "peloton-row"],
+  [/peloton/i, "peloton-bike-2nd-gen"],
+  [/nordic ?track/i, "nordictrack-treadmill"],
+  [/pro ?form/i, "proform-treadmill"],
+  [/bow ?flex/i, "bowflex"],
+  [/hydrow/i, "hydrow-pro-rowing-machine"],
+  [/(assault|air) ?bike/i, "assault-fitness-bike"],
+  [/spin ?bike/i, "spin-bike"],
+  [/indoor (cycling )?bike/i, "indoor-bikes"],
+  [/(rower|rowing machine|rowing)/i, "rower"],
+  [/elliptical/i, "elliptical"],
+  [/tread ?mill/i, "treadmills"],
+  [/\btonal\b/i, "tonal"],
+  [/smith machine/i, "smith-machine"],
+  [/(reformer|pilates)/i, "reformer"],
+  [/functional trainer|cable (machine|crossover)/i, "functional-trainer"],
+  [/home gym|power rack|squat rack/i, "home-gym"],
+  [/dumbbell|kettlebell|weight set|barbell/i, "dumbbell"],
+  [/swim spa/i, "swim-spa"],
+  [/jacuzzi/i, "jacuzzi"],
+  [/hot spring/i, "hot-spring"],
+  [/(hot ?tub|spa\b)/i, "hot-tub"],
+  [/infrared sauna/i, "infrared-sauna"],
+  [/sauna/i, "sauna"],
+  [/(cold plunge|ice bath|plunge tub)/i, "cold-plunge"],
+  [/float ?pod|sensory tank/i, "float-pod"],
+  [/massage chair/i, "massage-chair"],
+  [/golf ?cart/i, "golf-carts"],
+  [/\batv\b|four ?wheeler|quad bike/i, "atv"],
+  [/\brv\b|motor ?home|camper|winnebago/i, "rv-motorhome"],
+  [/(lawn ?mower|riding mower|zero ?turn)/i, "lawn-mower"],
+  [/\b(car|truck|suv|sedan|vehicle|tesla|toyota|honda|ford|jeep|bmw)\b/i, "cars"],
+];
+
+function categorizeName(name: string): { slug: string | null; confident: boolean } {
+  const n = name.trim().toLowerCase();
+  if (!n) return { slug: null, confident: false };
+
+  // 1) High-confidence keyword/brand rules.
+  for (const [re, slug] of CAT_RULES) {
+    if (re.test(n) && ALL_CATS.some((c) => c.slug === slug)) return { slug, confident: true };
+  }
+
+  // 2) Full category-name present in the input → high confidence.
+  const direct = ALL_CATS.find((c) => c.name.length > 3 && n.includes(c.name.toLowerCase()));
+  if (direct) return { slug: direct.slug, confident: true };
+
+  // 3) Weak token overlap → low-confidence guess (ask to confirm).
+  let best: string | null = null;
+  let bestScore = 0;
+  for (const c of ALL_CATS) {
+    const toks = c.name.toLowerCase().split(/[^a-z0-9+]+/).filter((t) => t.length > 2);
+    if (!toks.length) continue;
+    const hits = toks.filter((t) => n.includes(t)).length;
+    const score = hits / toks.length;
+    if (score > bestScore) { bestScore = score; best = c.slug; }
+  }
+  if (best && bestScore >= 0.5) return { slug: best, confident: false };
+  return { slug: null, confident: false };
+}
+
+/* ------------------------------------------------------------------ */
 /* Draft persistence                                                  */
 /* ------------------------------------------------------------------ */
 
@@ -115,7 +190,8 @@ interface ChatMsg { role: "user" | "assistant"; content: string; photo?: string 
 /* Component                                                          */
 /* ================================================================== */
 export function SellPage({ onDone }: { onDone?: () => void }) {
-  const [mode, setMode] = useState<"start" | "margot" | "form">("start");
+  const [mode, setMode] = useState<"start" | "margot" | "form" | "confirm-cat">("start");
+  const [catGuess, setCatGuess] = useState<string | null>(null);
 
   // ---- form state ----
   const [draftId, setDraftId] = useState<string>("");
@@ -171,6 +247,25 @@ export function SellPage({ onDone }: { onDone?: () => void }) {
   function openForm(prefillTitle?: string) {
     if (prefillTitle) setTitle(prefillTitle);
     setMode("form");
+  }
+
+  /**
+   * Sell Now: assign the category automatically when we're confident, so the
+   * seller skips the category step entirely. If unsure, drop into a one-tap
+   * confirm step (with our best guess pre-highlighted) instead of guessing.
+   */
+  function startSell(rawName: string) {
+    const t = rawName.trim();
+    setTitle(t);
+    if (!t) { setCatGuess(null); setMode("confirm-cat"); return; }
+    const { slug, confident } = categorizeName(t);
+    if (slug && confident) {
+      setCatSlug(slug);
+      setMode("form");
+    } else {
+      setCatGuess(slug);
+      setMode("confirm-cat");
+    }
   }
 
   function loadDraft(d: Draft) {
@@ -283,6 +378,35 @@ export function SellPage({ onDone }: { onDone?: () => void }) {
     return <MargotChat onBack={() => setMode("start")} onUse={(f) => { applyFields(f); openForm(f.title); }} />;
   }
 
+  /* ---------------- Confirm category (only when unsure) ---------------- */
+  if (mode === "confirm-cat") {
+    return (
+      <div style={css("max-width:640px;margin:0 auto;padding:28px 22px 80px")}>
+        <Hoverable as="span" onClick={() => setMode("start")} styles="display:inline-flex;align-items:center;gap:5px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;margin-bottom:18px" hover="color:var(--ink)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>Back
+        </Hoverable>
+        <h1 style={css("font-family:'Reckless','Newsreader',serif;font-size:28px;font-weight:500;letter-spacing:-.4px;margin-bottom:8px")}>Which category fits{title ? ` “${title}”` : " your item"}?</h1>
+        <p style={css("font-size:14px;color:var(--muted);margin-bottom:24px")}>{catGuess ? "Tap to confirm our best guess (highlighted), or pick another." : "Pick the closest match — it helps us price and inspect your item."}</p>
+        {CAT_GROUPS.map((g) => (
+          <div key={g.name} style={css("margin-bottom:20px")}>
+            <div style={css("font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:9px")}>{g.name}</div>
+            <div style={css("display:flex;flex-wrap:wrap;gap:8px")}>
+              {g.items.map((it) => {
+                const isGuess = it.slug === catGuess;
+                return (
+                  <Hoverable key={it.slug} as="button" onClick={() => { setCatSlug(it.slug); setMode("form"); }}
+                    styles={sx("padding:9px 15px;border-radius:20px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit", isGuess ? { background: PLUM, color: "#fff", border: `1px solid ${PLUM}` } : { background: "var(--paper)", color: "var(--ink)", border: "1px solid var(--line)" })}
+                    hover={isGuess ? "filter:brightness(1.08)" : "border-color:#d9b7c2"}>{it.name}{isGuess ? "  ✓" : ""}</Hoverable>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+        <Hoverable as="button" onClick={() => { setCatSlug(""); setMode("form"); }} styles="margin-top:6px;background:transparent;color:var(--muted);border:none;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;text-decoration:underline" hover="color:var(--ink)">Skip — list it as a generic item</Hoverable>
+      </div>
+    );
+  }
+
   /* ---------------- Form ---------------- */
   if (mode === "form") {
     return (
@@ -320,17 +444,17 @@ export function SellPage({ onDone }: { onDone?: () => void }) {
             <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Peloton Bike+, Sub-Zero fridge, leather sofa…" style={css(FIELD)} />
           </div>
 
-          {/* Category (optional) */}
+          {/* Category — auto-assigned from the title; confirm inline, not a step */}
           <div>
-            <FieldLabel label="Category" help="Optional — helps us price & inspect it. Leave blank and we'll match it." />
-            <select value={catSlug} onChange={(e) => setCatSlug(e.target.value)} style={sx(FIELD, "cursor:pointer")}>
-              <option value="">Select a category (optional)</option>
-              {CAT_GROUPS.map((g) => (
-                <optgroup key={g.name} label={g.name}>
-                  {g.items.map((it) => (<option key={it.slug} value={it.slug}>{it.name}</option>))}
-                </optgroup>
-              ))}
-            </select>
+            <FieldLabel label="Category" />
+            <div style={css("display:flex;align-items:center;gap:10px;flex-wrap:wrap")}>
+              <span style={sx("display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:20px;font-size:13.5px;font-weight:700", matched ? { background: "#F4E7EA", color: PLUM } : { background: "var(--putty)", color: "var(--muted)" })}>
+                {matched ? (
+                  <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6}><path d="M20 6 9 17l-5-5" /></svg>{matched.name}</>
+                ) : "Generic item"}
+              </span>
+              <Hoverable as="span" onClick={() => setMode("confirm-cat")} styles="font-size:13px;font-weight:700;color:var(--blueInk);cursor:pointer" hover="text-decoration:underline">Change</Hoverable>
+            </div>
           </div>
 
           {/* Category-specific ACF fields */}
@@ -412,10 +536,10 @@ export function SellPage({ onDone }: { onDone?: () => void }) {
 
         <div style={css("display:flex;gap:8px;background:var(--paper);border:1px solid var(--line);border-radius:40px;padding:6px 6px 6px 8px;max-width:640px;margin:0 auto;align-items:center")}>
           <input value={nameInput} onChange={(e) => setNameInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && nameInput.trim()) openForm(nameInput.trim()); }}
+            onKeyDown={(e) => { if (e.key === "Enter" && nameInput.trim()) startSell(nameInput); }}
             placeholder="Write product name e.g. Bowflex Gym or West Elm Table"
             style={css("flex:1;min-width:0;border:none;outline:none;background:transparent;font-size:14.5px;color:var(--ink);padding:10px 14px;font-family:inherit")} />
-          <Hoverable as="button" onClick={() => openForm(nameInput.trim() || undefined)}
+          <Hoverable as="button" onClick={() => startSell(nameInput)}
             styles={`background:${PLUM};color:#fff;border:none;border-radius:30px;padding:12px 26px;font-size:14.5px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap`} hover="filter:brightness(1.08)">Sell Now</Hoverable>
         </div>
 
