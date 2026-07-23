@@ -6,6 +6,14 @@
 // share one spec (every Peloton bike variant → the same bike questions, etc.).
 // Adding a category = add a slug→kind mapping (and a kind spec if new); no
 // component changes required.
+//
+// questions[] mirror the REAL Commonplace WooCommerce ACF field groups
+// (`listing-seller-form-acf` plugin), verbatim and in ACF menu_order. ACF type
+// → Field.type mapping: checkbox → "chips", radio → "radio", select → "select",
+// true_false → "radio" ["Yes","No"], text → "text", number → "number",
+// textarea → "textarea", date_picker(year) → "number". The COMMON fields
+// (asking/floor/original price, description, photos, seller contact) are
+// rendered globally by the form and are intentionally NOT repeated here.
 
 export type FieldType = "text" | "number" | "select" | "chips" | "radio" | "textarea";
 
@@ -31,38 +39,72 @@ export interface SellSpec {
   photoTips: string[];
 }
 
-const ISSUES: Field = {
-  key: "issues",
-  label: "Any issues, wear, or missing parts?",
-  type: "textarea",
-  placeholder: "Be honest — squeaks, cracks, error codes, missing accessories. It speeds up pickup.",
-};
+/* ------------------------------- Option lists ------------------------------- */
+// Shared, reusable option arrays. Kept verbatim to the ACF choice lists.
+
+const YES_NO = ["Yes", "No"];
+const NEW_TO_POOR = ["New", "Like New", "Good", "Fair", "Poor"];
+const EXCELLENT_TO_POOR = ["Excellent", "Good", "Fair", "Poor"];
+
+function yearRange(start: number, endInclusive: number, trailing?: string): string[] {
+  const out: string[] = [];
+  for (let y = start; y <= endInclusive; y++) out.push(String(y));
+  if (trailing) out.push(trailing);
+  return out;
+}
+
+function numberRange(start: number, endInclusive: number): string[] {
+  const out: string[] = [];
+  for (let n = start; n <= endInclusive; n++) out.push(String(n));
+  return out;
+}
 
 /* --------------------------------- Kind specs --------------------------------- */
 export const KIND_SPECS: Record<string, SellSpec> = {
+  // Peloton Bike — ACF group 8207
   pelotonBike: {
     kind: "pelotonBike",
     title: "Peloton Bike",
     questions: [
-      { key: "model", label: "Model", type: "select", options: ["Bike (Original 2020)", "Bike 2021", "Bike+ (Plus)"], required: true },
+      { key: "year", label: "Year", type: "radio", required: true, options: ["2018", "2019", "2020", "2021", "2022", "2023", "2024", "2025-present"] },
       {
-        key: "screenGen",
-        label: "Screen generation",
-        type: "select",
-        options: [
-          "Gen 3 — model RB1VQ (fully supported)",
-          "Gen 2 — model RB1V1 (ages, still plays classes)",
-          "Gen 1 — QUARTZ/001 (bricked — no class streaming)",
-          "Not sure",
-        ],
-        help: "Check the sticker on the back of the screen. Gen 1 has an orange power button and a sticker ending in QUARTZ or 001 — Peloton cut off class streaming for it in June 2024. Gen 2 = model RB1V1. Gen 3 = model RB1VQ (baseline standard).",
+        key: "condition",
+        label: "Condition",
+        type: "radio",
+        required: true,
+        options: ["Excellent (0-50 Rides)", "Very Good (51-200 Rides)", "Works Well (201-500 Rides)", "Over 500 Rides", "Need Some Love"],
       },
-      { key: "year", label: "Year purchased", type: "number", placeholder: "e.g. 2022" },
-      { key: "rides", label: "Approx. total rides / usage", type: "select", options: ["0–50 (low)", "50–250", "250–1000", "1000+"] },
-      { key: "accessories", label: "Included accessories", type: "chips", options: ["Cycling shoes", "3 lb weights", "5 lb weights", "10 lb weights", "Mat", "Heart-rate band", "Extra cleats", "Water bottle", "Bike weights holder"] },
-      { key: "powersOn", label: "Screen powers on & rotates (Bike+)", type: "radio", options: ["Yes", "No", "N/A"] },
-      { key: "subscription", label: "Subscription status", type: "select", options: ["Active", "Cancelled", "Never activated"] },
-      ISSUES,
+      {
+        key: "accessories",
+        label: "Accessories",
+        type: "chips",
+        options: ["Shoes", "Mat", "Weights", "Heart rate monitor", "Fan", "Laptop tray", "Pedal cages", "Seat cushion", "Sweat guard"],
+      },
+      { key: "shoes_size", label: "Shoe Size", type: "radio", options: numberRange(36, 47), help: "If shoes are included" },
+      {
+        key: "damage",
+        label: "Issues",
+        type: "chips",
+        required: true,
+        options: [
+          "No Damage",
+          "Cracked or broken screen",
+          "Bike does not turn on",
+          "Bike makes noise while pedaling",
+          "Resistance not calibrated",
+          "Rust on or under bike",
+          "Missing floor pegs",
+          "Missing bottle holder",
+          "Missing charging cable",
+          "Staining or damage to handles",
+          "Damaged seat",
+          "Damaged pedals",
+          "Dogs in home",
+          "Cats in home",
+          "Smoked in home",
+        ],
+      },
+      { key: "serial_number", label: "Serial Number", type: "text" },
     ],
     photoTips: [
       "Full bike from the side, screen powered ON",
@@ -72,15 +114,21 @@ export const KIND_SPECS: Record<string, SellSpec> = {
       "Any scratches, rust, or sweat wear",
     ],
   },
+
+  // Peloton Tread — ACF group 72772
   pelotonTread: {
     kind: "pelotonTread",
     title: "Peloton Tread",
     questions: [
-      { key: "model", label: "Model", type: "select", options: ["Tread", "Tread+"], required: true },
-      { key: "miles", label: "Approx. miles / hours of use", type: "text", placeholder: "e.g. ~400 mi" },
-      { key: "beltCondition", label: "Belt & deck condition", type: "select", options: ["Like new", "Light wear", "Worn but working", "Needs service"] },
-      { key: "accessories", label: "Included accessories", type: "chips", options: ["Safety key", "Mat", "Heart-rate band"] },
-      ISSUES,
+      { key: "condition", label: "Condition", type: "select", required: true, options: EXCELLENT_TO_POOR },
+      { key: "year_of_manufacture", label: "Year of Manufacture", type: "number", required: true, placeholder: "e.g. 2023" },
+      { key: "usage_count_rides", label: "Usage Count (Rides)", type: "text" },
+      { key: "motor_functionality", label: "Motor Functionality", type: "select", required: true, options: YES_NO },
+      { key: "touchscreen_condition", label: "Touchscreen Condition", type: "select", required: true, options: ["Fully Functional", "Minor Issues", "Major Issues", "Not Working"] },
+      { key: "incline_functionality", label: "Incline Functionality", type: "select", required: true, options: YES_NO },
+      { key: "speed_range_functionality", label: "Speed Range Functionality", type: "select", required: true, options: YES_NO },
+      { key: "includes_mat", label: "Includes Mat", type: "select", options: YES_NO },
+      { key: "subscription_status", label: "Subscription Status", type: "select", options: ["Active", "Inactive", "Not Applicable"] },
     ],
     photoTips: [
       "Full treadmill from the side, screen ON",
@@ -90,17 +138,87 @@ export const KIND_SPECS: Record<string, SellSpec> = {
       "Any belt fraying, deck marks, or damage",
     ],
   },
+
+  // Peloton Row — ACF group 72949
+  pelotonRow: {
+    kind: "pelotonRow",
+    title: "Peloton Row",
+    questions: [
+      { key: "condition", label: "Condition", type: "select", required: true, options: EXCELLENT_TO_POOR },
+      { key: "usage_rides", label: "Usage (Rides)", type: "number" },
+      { key: "year_of_manufacture", label: "Year of Manufacture", type: "number", required: true, placeholder: "e.g. 2023" },
+      { key: "accessories_included", label: "Accessories Included", type: "select", options: YES_NO },
+      { key: "screen_functionality", label: "Screen Functionality", type: "select", required: true, options: ["Fully Functional", "Partially Functional", "Not Working"] },
+      { key: "resistance_levels_working", label: "Resistance Levels Working", type: "select", required: true, options: YES_NO },
+      { key: "damage_reported", label: "Damage Reported", type: "select", required: true, options: YES_NO },
+      { key: "foldable_feature_working", label: "Foldable Feature Working", type: "select", options: YES_NO },
+    ],
+    photoTips: [
+      "Full rower from the side, screen ON",
+      "Seat rail and handle",
+      "Screen / monitor home screen",
+      "Serial number label",
+      "Stored/upright position, any wear",
+    ],
+  },
+
+  // Treadmill — ACF group 12946
   treadmill: {
     kind: "treadmill",
     title: "Treadmill",
     questions: [
-      { key: "brand", label: "Brand", type: "text", placeholder: "NordicTrack, ProForm, Sole, Bowflex…", required: true },
-      { key: "model", label: "Model", type: "text", placeholder: "e.g. Commercial 1750" },
-      { key: "folding", label: "Folds for storage", type: "radio", options: ["Yes", "No"] },
-      { key: "capacity", label: "Max user weight", type: "text", placeholder: "e.g. 300 lb" },
-      { key: "consoleWorks", label: "Console / incline working", type: "radio", options: ["Yes", "No", "Partly"] },
-      { key: "accessories", label: "Included accessories", type: "chips", options: ["Safety key", "Tablet holder", "Mat", "Owner's manual", "Lubricant"] },
-      ISSUES,
+      {
+        key: "brand",
+        label: "Brand",
+        type: "radio",
+        required: true,
+        options: ["NordicTrack", "Sole Fitness", "ProForm", "Horizon Fitness", "Bowflex", "Echelon", "Life Fitness", "Precor", "TRUE Fitness", "Assault"],
+      },
+      { key: "model", label: "Model", type: "text" },
+      {
+        key: "type",
+        label: "Type",
+        type: "radio",
+        options: [
+          "Manual Treadmills",
+          "Motorized Treadmills",
+          "Folding Treadmills",
+          "Compact Treadmills",
+          "Incline Treadmills",
+          "Desk Treadmills (Under-Desk/Walking Pad)",
+          "Commercial Treadmills",
+          "Curved Treadmills",
+          "Hybrid Treadmills (Treadmill-Bike Combos)",
+          "Medical/Rehabilitation Treadmills",
+        ],
+      },
+      { key: "year", label: "Year", type: "select", required: true, options: yearRange(2010, 2024, "2025-Present") },
+      {
+        key: "condition",
+        label: "Tread Usage/condition",
+        type: "radio",
+        required: true,
+        options: ["Excellent (0-50 uses)", "Very Good (51-200 Rides)", "Work Well (201-500 Runs)", "Need Some Love"],
+      },
+      {
+        key: "damage",
+        label: "Issues",
+        type: "chips",
+        required: true,
+        options: [
+          "Motor not running",
+          "Belt slipping or misalignment",
+          "Screen freezing or unresponsive",
+          "Bluetooth connectivity problems (app sync)",
+          "Noisy operation (e.g., squeaking, grinding)",
+          "Incline failure",
+          "Power supply failure (won't turn on)",
+          "Frame instability or wobble",
+          "Speed sensor inaccuracy",
+          "NO DAMAGE",
+        ],
+      },
+      { key: "accessories", label: "Accessories", type: "chips", required: true, options: ["None", "Mat", "Weights", "Heart rate monitor", "Fan", "Laptop tray"] },
     ],
     photoTips: [
       "Full treadmill from the side",
@@ -110,15 +228,45 @@ export const KIND_SPECS: Record<string, SellSpec> = {
       "Folded position, if it folds",
     ],
   },
+
+  // Elliptical — ACF group 72668
+  elliptical: {
+    kind: "elliptical",
+    title: "Elliptical",
+    questions: [
+      { key: "brand", label: "Brand", type: "text", required: true },
+      { key: "model", label: "Model", type: "text", required: true },
+      { key: "year", label: "Year", type: "number" },
+      { key: "condition", label: "Condition", type: "select", required: true, options: NEW_TO_POOR },
+      { key: "usage_hours", label: "Usage Hours", type: "number" },
+      { key: "adjustable_resistance", label: "Adjustable Resistance", type: "select", options: YES_NO },
+      { key: "adjustable_stride", label: "Adjustable Stride", type: "select", options: YES_NO },
+      { key: "max_user_weight", label: "Maximum User Weight (lbs)", type: "number" },
+      { key: "digital_display", label: "Digital Display", type: "select", options: YES_NO },
+      { key: "heart_rate_monitor", label: "Heart Rate Monitor", type: "select", options: YES_NO },
+    ],
+    photoTips: [
+      "Full elliptical from the side",
+      "Console / display (on, if it has one)",
+      "Pedals and handlebars",
+      "Model/serial label",
+      "Any rust or wear",
+    ],
+  },
+
+  // Rower (rowing machine) — ACF group 72866
   rower: {
     kind: "rower",
     title: "Rowing Machine",
     questions: [
-      { key: "brand", label: "Brand", type: "text", placeholder: "Hydrow, Peloton, Concept2, Ergatta…", required: true },
-      { key: "resistance", label: "Resistance type", type: "select", options: ["Magnetic", "Water", "Air", "Electromagnetic"] },
-      { key: "foldable", label: "Folds / stands upright for storage", type: "radio", options: ["Yes", "No"] },
-      { key: "accessories", label: "Included accessories", type: "chips", options: ["Mat", "Heart-rate band", "Device holder"] },
-      ISSUES,
+      { key: "brand", label: "Brand", type: "text", required: true },
+      { key: "model_year", label: "Model Year", type: "number", required: true },
+      { key: "condition", label: "Condition", type: "select", required: true, options: NEW_TO_POOR },
+      { key: "usage_hours", label: "Usage Hours", type: "text" },
+      { key: "resistance_type", label: "Resistance Type", type: "select", options: ["Magnetic", "Water", "Air", "Hydraulic"] },
+      { key: "built_in_display", label: "Built-in Display", type: "select", options: YES_NO },
+      { key: "subscription_required", label: "Subscription Required", type: "select", options: YES_NO },
+      { key: "accessories_included", label: "Accessories Included", type: "text" },
     ],
     photoTips: [
       "Full rower from the side",
@@ -128,15 +276,20 @@ export const KIND_SPECS: Record<string, SellSpec> = {
       "Stored/upright position",
     ],
   },
-  indoorBike: {
-    kind: "indoorBike",
-    title: "Indoor / Spin Bike",
+
+  // Exercise Bike — ACF group 133615
+  exerciseBike: {
+    kind: "exerciseBike",
+    title: "Exercise Bike",
     questions: [
-      { key: "brand", label: "Brand", type: "text", placeholder: "NordicTrack, Bowflex, Schwinn, Assault…", required: true },
+      { key: "brand", label: "Brand", type: "text", required: true },
       { key: "model", label: "Model", type: "text" },
-      { key: "resistance", label: "Resistance type", type: "select", options: ["Magnetic", "Friction", "Air"] },
-      { key: "console", label: "Has a screen / console", type: "radio", options: ["Yes", "No"] },
-      ISSUES,
+      { key: "condition", label: "Condition", type: "select", required: true, options: NEW_TO_POOR },
+      { key: "resistance_levels", label: "Resistance Levels", type: "number" },
+      { key: "digital_display", label: "Digital Display", type: "select", options: YES_NO },
+      { key: "adjustable_seat", label: "Adjustable Seat", type: "select", options: YES_NO },
+      { key: "weight_capacity", label: "Weight Capacity (lbs)", type: "number" },
+      { key: "foldable_design", label: "Foldable Design", type: "select", options: YES_NO },
     ],
     photoTips: [
       "Full bike from the side",
@@ -146,53 +299,102 @@ export const KIND_SPECS: Record<string, SellSpec> = {
       "Any rust or wear",
     ],
   },
-  tonal: {
-    kind: "tonal",
-    title: "Tonal",
-    questions: [
-      { key: "generation", label: "Generation", type: "select", options: ["Gen 1", "Gen 2", "Not sure"] },
-      { key: "mounted", label: "Currently wall-mounted", type: "radio", options: ["Yes", "No"] },
-      { key: "accessories", label: "Smart Accessories included", type: "chips", options: ["Smart Handles", "Smart Bar", "Rope", "Bench", "Roller", "Mat"] },
-      { key: "subscription", label: "Subscription status", type: "select", options: ["Active", "Cancelled", "Never activated"] },
-      ISSUES,
-    ],
-    photoTips: [
-      "Full unit mounted on the wall, screen ON",
-      "Screen home screen close-up",
-      "Both arms extended",
-      "All included Smart Accessories laid out",
-      "Serial number (side or back of unit)",
-    ],
-  },
-  homeGym: {
-    kind: "homeGym",
-    title: "Home Gym / Strength",
-    questions: [
-      { key: "brand", label: "Brand", type: "text", placeholder: "Bowflex, Life Fitness, Rogue…", required: true },
-      { key: "model", label: "Model", type: "text" },
-      { key: "weightStack", label: "Max weight / stack", type: "text", placeholder: "e.g. 210 lb stack" },
-      { key: "attachments", label: "Attachments included", type: "chips", options: ["Lat bar", "Cable handles", "Bench", "Leg developer", "Plates"] },
-      ISSUES,
-    ],
-    photoTips: [
-      "Full unit, fully assembled",
-      "Weight stack / plates",
-      "All cables and attachments",
-      "Model/serial label",
-      "Any frayed cables or damage",
-    ],
-  },
+
+  // Hot Tub — ACF group 12953
   hotTub: {
     kind: "hotTub",
     title: "Hot Tub / Spa",
     questions: [
-      { key: "brand", label: "Brand", type: "text", placeholder: "Master Spas, Jacuzzi, Hot Spring…", required: true },
-      { key: "capacity", label: "Seating capacity", type: "select", options: ["2-person", "3-4 person", "5-6 person", "7+ person"] },
-      { key: "water", label: "Water system", type: "select", options: ["Saltwater", "Chlorine/Bromine", "Not sure"] },
-      { key: "cover", label: "Cover included", type: "radio", options: ["Yes", "No"] },
-      { key: "working", label: "Heater & pumps working", type: "radio", options: ["Yes", "No", "Not sure"] },
-      { key: "dims", label: "Approx. dimensions", type: "text", placeholder: "e.g. 84 x 84 x 36 in" },
-      ISSUES,
+      {
+        key: "brand",
+        label: "Brand",
+        type: "radio",
+        required: true,
+        options: [
+          "Jacuzzi",
+          "Hot Spring Spas",
+          "Sundance Spas",
+          "Bullfrog Spas",
+          "Caldera Spas",
+          "Master Spas",
+          "Cal Spas",
+          "Marquis Spas",
+          "Dimension One Spas (D1)",
+          "ThermoSpas",
+          "Arctic Spas",
+          "Wellis Spas",
+          "Nordic Hot Tubs",
+          "Beachcomber Hot Tubs",
+          "Vita Spa",
+          "Hydropool Hot Tubs",
+          "Coast Spas",
+          "Freeflow Spas",
+          "Fantasy Spas",
+          "Strong Spas",
+        ],
+      },
+      { key: "Model", label: "Model", type: "text", required: true },
+      { key: "condition", label: "Condition", type: "select", required: true, options: ["New", "Like New", "Excellent", "Good", "Fair"] },
+      { key: "year", label: "Year", type: "number", placeholder: "e.g. 2021" },
+      {
+        key: "usage",
+        label: "Usage",
+        type: "radio",
+        options: [
+          "0-100 Hours (Near New)",
+          "100-500 Hours (Lightly Used)",
+          "500-1,000 Hours (Moderately Used)",
+          "1,000-2,000 Hours (Well Used)",
+          "2,000+ Hours (Extensively Used)",
+        ],
+      },
+      {
+        key: "accessories",
+        label: "Accessories",
+        type: "chips",
+        options: [
+          "No Accessories",
+          "Insulated Cover",
+          "Cover Lifter",
+          "Steps or Ladder",
+          "Jet Upgrade (e.g., extra or specialty jets)",
+          "Filtration System (e.g., cartridge filters)",
+          "Ozonator",
+          "LED Lighting (e.g., multicolor)",
+          "Bluetooth Audio System",
+          "Waterfall Feature",
+          "Maintenance Kit (e.g., chemicals, test strips)",
+          "Towel Rack or Hooks",
+        ],
+      },
+      {
+        key: "issues",
+        label: "Issues",
+        type: "chips",
+        required: true,
+        options: [
+          "No Issues",
+          "Heater not warming properly",
+          "Leaks in the tub or plumbing",
+          "Jet pump failure or weak pressure",
+          "Electrical problems (e.g., tripped breaker)",
+          "Water quality issues (e.g., cloudy water)",
+          "Control panel malfunction",
+          "Excessive noise (e.g., pump or jets)",
+          "Overheating components",
+          "Rust or corrosion",
+          "Filter clogs or breakdowns",
+          "Insulation failure",
+          "Cracks or wear in the shell",
+          "Cover deterioration (e.g., rips, waterlogged)",
+        ],
+      },
+      { key: "maximum_temperature", label: "Maximum Temperature", type: "number" },
+      { key: "capa", label: "Capacity", type: "radio", options: ["2-3 Person", "4-5 Person", "6+ Person"] },
+      { key: "Power_Requirements", label: "Power Requirements", type: "radio", options: ["110V (15-20 Amp)", "220V (30-50 Amp)", "240V (50-60 Amp)"] },
+      { key: "seats", label: "Seats", type: "number" },
+      { key: "jet_count", label: "Jet Count", type: "number" },
+      { key: "sanitation_system", label: "Sanitation System", type: "radio", options: ["Chlorine", "Bromine", "Ionizers (copper/metal)", "Saltwater", "Ozone", "Other"] },
     ],
     photoTips: [
       "Full tub with the cover off",
@@ -203,33 +405,24 @@ export const KIND_SPECS: Record<string, SellSpec> = {
       "Any cracks, fading, or leaks",
     ],
   },
-  swimSpa: {
-    kind: "swimSpa",
-    title: "Swim Spa",
-    questions: [
-      { key: "brand", label: "Brand", type: "text", required: true },
-      { key: "length", label: "Length", type: "text", placeholder: "e.g. 15 ft" },
-      { key: "swimSystem", label: "Swim system", type: "select", options: ["Jet propulsion", "Paddle wheel / current", "Not sure"] },
-      { key: "working", label: "Heater & pumps working", type: "radio", options: ["Yes", "No", "Not sure"] },
-      ISSUES,
-    ],
-    photoTips: [
-      "Full swim spa with cover off",
-      "Control panel",
-      "Swim jets / current system",
-      "Cabinet and corners",
-      "Any cracks or fading",
-    ],
-  },
+
+  // Sauna — ACF group 72826 (term 114)
   sauna: {
     kind: "sauna",
     title: "Sauna",
     questions: [
-      { key: "type", label: "Type", type: "select", options: ["Infrared", "Traditional (electric)", "Wood-burning"], required: true },
-      { key: "capacity", label: "Capacity", type: "select", options: ["1-person", "2-person", "3-4 person", "5+ person"] },
-      { key: "wood", label: "Wood type", type: "text", placeholder: "e.g. Canadian hemlock" },
-      { key: "working", label: "Heater / panels working", type: "radio", options: ["Yes", "No", "Not sure"] },
-      ISSUES,
+      { key: "brand", label: "Brand", type: "text", required: true },
+      { key: "model", label: "Model", type: "text", required: true },
+      { key: "year", label: "Year", type: "number", required: true },
+      { key: "condition", label: "Condition", type: "select", required: true, options: NEW_TO_POOR },
+      { key: "capacity_people", label: "Capacity (People)", type: "number" },
+      { key: "width_ft", label: "Width (ft)", type: "number" },
+      { key: "depth_ft", label: "Depth (ft)", type: "number" },
+      { key: "height_ft", label: "Height (ft)", type: "number" },
+      { key: "infrared_technology", label: "Infrared Technology", type: "select", options: YES_NO },
+      { key: "chromotherapy_lights", label: "Chromotherapy Lights", type: "select", options: YES_NO },
+      { key: "bluetooth_speakers", label: "Bluetooth Speakers", type: "select", options: YES_NO },
+      { key: "included_accessories", label: "Included Accessories", type: "text" },
     ],
     photoTips: [
       "Full exterior of the sauna",
@@ -239,33 +432,171 @@ export const KIND_SPECS: Record<string, SellSpec> = {
       "Any wood cracks, warping, or water damage",
     ],
   },
+
+  // Cold Plunge — ACF group 73196 (term 119)
   coldPlunge: {
     kind: "coldPlunge",
     title: "Cold Plunge",
     questions: [
-      { key: "brand", label: "Brand", type: "text", placeholder: "The Plunge, Ice Barrel, Renu…", required: true },
-      { key: "chiller", label: "Chiller included", type: "radio", options: ["Yes", "No"] },
-      { key: "tempRange", label: "Min temperature", type: "text", placeholder: "e.g. 39°F" },
-      { key: "filtration", label: "Has filtration / ozone", type: "radio", options: ["Yes", "No", "Not sure"] },
-      ISSUES,
+      { key: "brand", label: "Brand", type: "text", required: true },
+      { key: "model_year", label: "Model Year", type: "number", required: true },
+      { key: "motor_power_hp", label: "Motor Power (HP)", type: "number" },
+      { key: "min_temperature_f", label: "Minimum Temperature (°F)", type: "number" },
+      { key: "capacity_persons", label: "Capacity (Persons)", type: "number", required: true },
+      { key: "material", label: "Material", type: "select", options: ["Plastic", "Metal", "Composite", "Other"] },
+      { key: "insulated_cover_included", label: "Insulated Cover Included", type: "select", options: YES_NO },
+      { key: "heating_function", label: "Heating Function", type: "select", options: YES_NO },
+      { key: "condition", label: "Condition", type: "select", required: true, options: NEW_TO_POOR },
     ],
     photoTips: [
       "Full tub, empty and clean",
-      "Chiller unit (front + ports)",
+      "Chiller / motor unit (front + ports)",
       "Control display / temperature reading",
       "Interior basin",
       "Any cracks, scale, or leaks",
     ],
   },
+
+  // Swim Spa — ACF group 73632
+  swimSpa: {
+    kind: "swimSpa",
+    title: "Swim Spa",
+    questions: [
+      { key: "brand", label: "Brand", type: "text", required: true },
+      { key: "model_year", label: "Model Year", type: "number", required: true },
+      { key: "dimensions", label: "Dimensions (ft)", type: "text" },
+      { key: "water_capacity", label: "Water Capacity (gallons)", type: "number" },
+      { key: "number_of_jets", label: "Number of Jets", type: "number" },
+      { key: "condition", label: "Condition", type: "select", required: true, options: NEW_TO_POOR },
+      { key: "heater_included", label: "Heater Included", type: "select", options: YES_NO },
+      { key: "cover_included", label: "Cover Included", type: "select", options: YES_NO },
+      { key: "installation_type", label: "Installation Type", type: "select", options: ["Above Ground", "In-Ground"] },
+      { key: "power_requirement", label: "Power Requirement (Volts)", type: "number" },
+    ],
+    photoTips: [
+      "Full swim spa with cover off",
+      "Control panel",
+      "Swim jets / current system",
+      "Cabinet and corners",
+      "Any cracks or fading",
+    ],
+  },
+
+  // Tonal — ACF group 13646
+  tonal: {
+    kind: "tonal",
+    title: "Tonal",
+    questions: [
+      { key: "year", label: "Year", type: "radio", required: true, options: yearRange(2018, 2024, "2025-Present") },
+      {
+        key: "condition",
+        label: "Condition",
+        type: "radio",
+        required: true,
+        options: ["Need Some Love", "Work Well (201-500 uses)", "Very Good (51-200 uses)", "Excellent (0-50 uses)"],
+      },
+      {
+        key: "accessories",
+        label: "Accessories",
+        type: "chips",
+        options: ["Smart Handles", "Smart Bar", "Bench", "Rope", "Workout Mat", "Roller", "Clips/Cables", "Wall Mount Hardware", "Heart Rate Monitor", "Cleaning Kit"],
+      },
+      {
+        key: "damage",
+        label: "Issues",
+        type: "chips",
+        required: true,
+        options: [
+          "No Issues",
+          "Screen Malfunction",
+          "Weight Arm Failure",
+          "Software Glitches",
+          "Cable Wear",
+          "Power Supply Issues",
+          "Mounting Damage",
+          "Sensor Errors",
+          "Cosmetic Damage",
+          "Missing Accessories",
+        ],
+      },
+      { key: "model", label: "Model", type: "radio", options: ["Tonal 1", "Tonal 2"] },
+    ],
+    photoTips: [
+      "Full unit mounted on the wall, screen ON",
+      "Screen home screen close-up",
+      "Both arms extended",
+      "All included Smart Accessories laid out",
+      "Serial number (side or back of unit)",
+    ],
+  },
+
+  // Home Gyms — ACF group 73314
+  homeGym: {
+    kind: "homeGym",
+    title: "Home Gym / Strength",
+    questions: [
+      { key: "brand", label: "Brand", type: "text", required: true, placeholder: "Bowflex" },
+      { key: "model", label: "Model", type: "text", required: true, placeholder: "Xtreme 2 SE" },
+      { key: "year", label: "Year", type: "number" },
+      { key: "condition", label: "Condition", type: "select", required: true, options: NEW_TO_POOR },
+      { key: "max_resistance_lbs", label: "Maximum Resistance (lbs)", type: "number" },
+      { key: "upgradable_resistance", label: "Upgradable Resistance", type: "select", options: YES_NO },
+      { key: "number_of_exercises", label: "Number of Exercises", type: "number" },
+      { key: "includes_lat_tower", label: "Includes Lat Tower", type: "select", options: YES_NO },
+      { key: "includes_leg_extension_curl", label: "Includes Leg Extension/Curl", type: "select", options: YES_NO },
+      { key: "includes_rowing_station", label: "Includes Rowing Station", type: "select", options: YES_NO },
+      { key: "assembly_required", label: "Assembly Required", type: "select", options: YES_NO },
+      { key: "seat_material", label: "Seat Material", type: "text" },
+    ],
+    photoTips: [
+      "Full unit, fully assembled",
+      "Weight stack / plates",
+      "All cables and attachments",
+      "Model/serial label",
+      "Any frayed cables or damage",
+    ],
+  },
+
+  // Cable / Functional Trainer Machine — ACF group 73270
+  functionalTrainer: {
+    kind: "functionalTrainer",
+    title: "Functional Trainer",
+    questions: [
+      { key: "brand", label: "Brand", type: "text", required: true },
+      { key: "model_year", label: "Model Year", type: "number", required: true },
+      { key: "condition", label: "Condition", type: "select", required: true, options: NEW_TO_POOR },
+      { key: "max_weight_stack", label: "Maximum Weight Stack (lbs)", type: "number" },
+      { key: "dimensions", label: "Dimensions (HxWxD in inches)", type: "text" },
+      { key: "included_attachments", label: "Included Attachments", type: "text" },
+      { key: "assembly_required", label: "Assembly Required", type: "select", required: true, options: YES_NO },
+      { key: "equipment_weight", label: "Weight of Equipment (lbs)", type: "number" },
+    ],
+    photoTips: [
+      "Full unit, fully assembled",
+      "Weight stacks (both sides)",
+      "All cable arms and attachments",
+      "Model/serial label",
+      "Any frayed cables or damage",
+    ],
+  },
+
+  // Massage Chair — ACF group 76752
   massageChair: {
     kind: "massageChair",
     title: "Massage Chair",
     questions: [
-      { key: "brand", label: "Brand", type: "text", placeholder: "Osaki, Human Touch, Kahuna…", required: true },
-      { key: "model", label: "Model", type: "text" },
-      { key: "zeroG", label: "Zero-gravity recline", type: "radio", options: ["Yes", "No"] },
-      { key: "working", label: "All functions working", type: "radio", options: ["Yes", "No", "Partly"] },
-      ISSUES,
+      { key: "brand", label: "Brand", type: "text", required: true },
+      { key: "model", label: "Model", type: "text", required: true },
+      { key: "year", label: "Year", type: "number", required: true },
+      { key: "condition", label: "Condition", type: "select", required: true, options: ["Like New", "Good", "Fair", "Poor"] },
+      { key: "usage_hours", label: "Usage Hours", type: "number" },
+      { key: "length_inches", label: "Length (inches)", type: "number" },
+      { key: "width_inches", label: "Width (inches)", type: "number" },
+      { key: "height_inches", label: "Height (inches)", type: "number" },
+      { key: "extended_length_inches", label: "Extended Length (inches)", type: "number" },
+      { key: "has_remote_control", label: "Has Remote Control", type: "select", options: YES_NO },
+      { key: "massage_programs", label: "Massage Programs", type: "text" },
+      { key: "weight_capacity_lbs", label: "Weight Capacity (lbs)", type: "number" },
     ],
     photoTips: [
       "Full chair, upright",
@@ -275,40 +606,22 @@ export const KIND_SPECS: Record<string, SellSpec> = {
       "Any tears, stains, or wear",
     ],
   },
-  car: {
-    kind: "car",
-    title: "Vehicle",
-    questions: [
-      { key: "make", label: "Make", type: "text", required: true },
-      { key: "model", label: "Model", type: "text", required: true },
-      { key: "year", label: "Year", type: "number", required: true },
-      { key: "mileage", label: "Mileage", type: "number", placeholder: "e.g. 62000" },
-      { key: "title", label: "Title status", type: "select", options: ["Clean", "Salvage/Rebuilt", "Lien", "No title"] },
-      { key: "transmission", label: "Transmission", type: "select", options: ["Automatic", "Manual"] },
-      { key: "vin", label: "VIN", type: "text", placeholder: "17-character VIN" },
-      ISSUES,
-    ],
-    photoTips: [
-      "Front 3/4 exterior",
-      "Rear 3/4 exterior",
-      "Full interior (front + back seats)",
-      "Odometer reading",
-      "Engine bay",
-      "Tires and any dents/scratches",
-      "VIN plate (dash or door jamb)",
-    ],
-  },
+
+  // Golf Carts — ACF group 101405
   golfCart: {
     kind: "golfCart",
     title: "Golf Cart",
     questions: [
-      { key: "brand", label: "Brand", type: "text", placeholder: "Club Car, EZGO, Yamaha…", required: true },
-      { key: "power", label: "Power", type: "select", options: ["Electric", "Gas", "Lithium"], required: true },
-      { key: "battery", label: "Battery type & age (if electric)", type: "text", placeholder: "e.g. Lithium, 1 yr" },
-      { key: "seats", label: "Seats", type: "select", options: ["2", "4", "6"] },
-      { key: "streetLegal", label: "Street legal / LSV", type: "radio", options: ["Yes", "No"] },
-      { key: "accessories", label: "Included accessories", type: "chips", options: ["Charger", "Cover", "Windshield", "Extra seats / rear seat", "Cooler", "Lift kit", "Custom wheels", "Bluetooth / stereo"] },
-      ISSUES,
+      { key: "brand", label: "Brand", type: "text", required: true },
+      { key: "model", label: "Model", type: "text", required: true },
+      { key: "year", label: "Year", type: "number" },
+      { key: "condition", label: "Condition", type: "select", required: true, options: NEW_TO_POOR },
+      { key: "battery_type", label: "Battery Type", type: "select", options: ["Lead-Acid", "Lithium-Ion", "Other"] },
+      { key: "seating_capacity", label: "Seating Capacity", type: "number" },
+      { key: "color", label: "Color", type: "text" },
+      { key: "has_canopy", label: "Has Canopy", type: "select", options: YES_NO },
+      { key: "mileage", label: "Mileage", type: "number" },
+      { key: "charging_time_hours", label: "Charging Time (Hours)", type: "number" },
     ],
     photoTips: [
       "Front 3/4 exterior",
@@ -319,17 +632,22 @@ export const KIND_SPECS: Record<string, SellSpec> = {
       "Tires and body scratches",
     ],
   },
+
+  // ATV — ACF group 131882
   atv: {
     kind: "atv",
     title: "ATV",
     questions: [
       { key: "brand", label: "Brand", type: "text", required: true },
-      { key: "model", label: "Model", type: "text" },
-      { key: "year", label: "Year", type: "number" },
-      { key: "engine", label: "Engine size (cc)", type: "text", placeholder: "e.g. 450cc" },
-      { key: "hours", label: "Hours / mileage", type: "text" },
-      { key: "title", label: "Title status", type: "select", options: ["Clean", "No title", "Bill of sale only"] },
-      ISSUES,
+      { key: "model", label: "Model", type: "text", required: true },
+      { key: "year", label: "Year", type: "number", required: true },
+      { key: "engine_size_cc", label: "Engine Size (cc)", type: "number" },
+      { key: "condition", label: "Condition", type: "select", required: true, options: NEW_TO_POOR },
+      { key: "mileage_hours", label: "Mileage (hours)", type: "number" },
+      { key: "drive_type", label: "Drive Type", type: "select", options: ["2WD", "4WD"] },
+      { key: "color", label: "Color", type: "text" },
+      { key: "has_title", label: "Has Title", type: "select", required: true, options: YES_NO },
+      { key: "accessories_included", label: "Accessories Included", type: "text" },
     ],
     photoTips: [
       "Front 3/4 exterior",
@@ -340,54 +658,7 @@ export const KIND_SPECS: Record<string, SellSpec> = {
       "Tires and any damage",
     ],
   },
-  rv: {
-    kind: "rv",
-    title: "RV / Motorhome",
-    questions: [
-      { key: "class", label: "Type", type: "select", options: ["Class A", "Class B (van)", "Class C", "Travel trailer", "Fifth wheel"], required: true },
-      { key: "make", label: "Make", type: "text", required: true },
-      { key: "model", label: "Model", type: "text" },
-      { key: "year", label: "Year", type: "number", required: true },
-      { key: "mileage", label: "Mileage (motorized)", type: "number" },
-      { key: "length", label: "Length", type: "text", placeholder: "e.g. 32 ft" },
-      { key: "sleeps", label: "Sleeps", type: "select", options: ["2", "3-4", "5-6", "7+"] },
-      { key: "slides", label: "Slide-outs", type: "select", options: ["0", "1", "2", "3+"] },
-      { key: "title", label: "Title status", type: "select", options: ["Clean", "Salvage", "Lien", "No title"] },
-      { key: "systems", label: "Systems working (AC, generator, plumbing, slides)", type: "radio", options: ["All working", "Mostly", "Some issues"] },
-      ISSUES,
-    ],
-    photoTips: [
-      "Full exterior, driver side",
-      "Full exterior, passenger side (slides out)",
-      "Interior: living, kitchen, bed, bath",
-      "Odometer + dash (motorized)",
-      "Roof condition",
-      "Tires and any body/water damage",
-      "VIN plate and generator hours",
-    ],
-  },
-  mower: {
-    kind: "mower",
-    title: "Lawn Mower",
-    questions: [
-      { key: "type", label: "Type", type: "select", options: ["Push", "Self-propelled", "Riding", "Zero-turn"], required: true },
-      { key: "brand", label: "Brand", type: "text", placeholder: "John Deere, Toro, Cub Cadet…", required: true },
-      { key: "model", label: "Model", type: "text" },
-      { key: "power", label: "Power", type: "select", options: ["Gas", "Electric (corded)", "Battery"] },
-      { key: "deck", label: "Deck size", type: "text", placeholder: "e.g. 42 in" },
-      { key: "hours", label: "Hours (riding/zero-turn)", type: "text" },
-      { key: "starts", label: "Starts & runs", type: "radio", options: ["Yes", "No", "Needs service"] },
-      ISSUES,
-    ],
-    photoTips: [
-      "Full mower, side view",
-      "Engine / motor close-up",
-      "Deck underside (blades)",
-      "Hour meter or dash (riding)",
-      "Model/serial plate",
-      "Any rust, leaks, or damage",
-    ],
-  },
+
   generic: {
     kind: "generic",
     title: "Item details",
@@ -408,44 +679,67 @@ export const KIND_SPECS: Record<string, SellSpec> = {
 
 /* ----------------------------- Slug → kind mapping ----------------------------- */
 const SLUG_TO_KIND: Record<string, string> = {
+  // Peloton Bike (all screen/gen variants share one spec)
+  "peloton-bike": "pelotonBike",
   "peloton-bike-2nd-gen": "pelotonBike",
-  "peloton-bike-plus": "pelotonBike",
   "peloton-bike-3rd-gen": "pelotonBike",
+  "peloton-bike-plus": "pelotonBike",
   "peloton-bike-2021": "pelotonBike",
   "peloton-bike-original-2020": "pelotonBike",
+  // Peloton Tread
   "peloton-tread": "pelotonTread",
   "peloton-tread-plus": "pelotonTread",
+  // Peloton Row
+  "peloton-row": "pelotonRow",
+  // Treadmills
   treadmills: "treadmill",
+  "treadmill-entry-level": "treadmill",
+  "treadmill-premium": "treadmill",
   "nordictrack-treadmill": "treadmill",
   "proform-treadmill": "treadmill",
   bowflex: "treadmill",
+  // Elliptical
+  elliptical: "elliptical",
+  // Rowers
   rower: "rower",
+  "rowing-machine": "rower",
   "hydrow-pro-rowing-machine": "rower",
-  "peloton-row": "rower",
-  "indoor-bikes": "indoorBike",
-  "spin-bike": "indoorBike",
-  "assault-fitness-bike": "indoorBike",
-  elliptical: "treadmill",
-  tonal: "tonal",
-  "home-gym": "homeGym",
-  "functional-trainer": "homeGym",
-  "smith-machine": "homeGym",
-  reformer: "homeGym",
-  dumbbell: "generic",
+  // Exercise / indoor / spin / assault bikes
+  "exercise-bike": "exerciseBike",
+  "indoor-bikes": "exerciseBike",
+  "spin-bike": "exerciseBike",
+  "assault-fitness-bike": "exerciseBike",
+  // Hot tubs / spas
   "hot-tub": "hotTub",
+  "hot-tubs": "hotTub",
   jacuzzi: "hotTub",
   "hot-spring": "hotTub",
-  "swim-spa": "swimSpa",
+  // Sauna
   sauna: "sauna",
   "infrared-sauna": "sauna",
+  // Cold plunge
   "cold-plunge": "coldPlunge",
+  // Swim spa
+  "swim-spa": "swimSpa",
+  // Tonal
+  tonal: "tonal",
+  // Home gym / strength
+  "home-gym": "homeGym",
+  "home-gyms": "homeGym",
+  "smith-machine": "homeGym",
+  // Functional / cable trainer
+  "functional-trainer": "functionalTrainer",
+  "cable-functional-trainer-machine": "functionalTrainer",
+  // Massage chair
   "massage-chair": "massageChair",
-  "float-pod": "generic",
-  cars: "car",
+  // Golf carts
   "golf-carts": "golfCart",
+  // ATV
   atv: "atv",
-  "rv-motorhome": "rv",
-  "lawn-mower": "mower",
+  // Long-tail → generic
+  reformer: "generic",
+  dumbbell: "generic",
+  "float-pod": "generic",
 };
 
 /** Resolve the sell spec for a category slug (generic fallback for long-tail). */
