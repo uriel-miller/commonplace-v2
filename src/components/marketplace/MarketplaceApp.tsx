@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { css, sx, Hoverable } from "@/lib/design/css";
 import {
   CAT_GROUPS,
@@ -8,7 +8,6 @@ import {
   ARTICLES,
   CONDITIONS,
   BROWSE_CHIPS,
-  ALL_CATEGORY_NAMES,
   type CatItem,
 } from "./data";
 import { resolveSellSpec, type Field } from "./sellSchema";
@@ -16,7 +15,7 @@ import { fetchListings } from "@/lib/clientApi";
 import { formatPrice, type Listing } from "@/lib/listing";
 import { Chevron, ChevronRight, ChevronLeft, Pin, Plus, Close, Search } from "./icons";
 import { useCart } from "@/components/cart/CartProvider";
-import { CartPage } from "@/components/cart/CartPage";
+import { SideCart } from "@/components/cart/SideCart";
 import { AccountPage } from "@/components/pages/account/AccountPage";
 import { SearchPage } from "@/components/pages/search/SearchPage";
 import { resolveInfoPage } from "@/components/pages/info";
@@ -56,7 +55,13 @@ export function MarketplaceApp() {
   const [videoId, setVideoId] = useState<string | null>(null);
   const [offerOpen, setOfferOpen] = useState(false);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const [cartOpen, setCartOpen] = useState(false);
   const cart = useCart();
+  const prevCartCount = useRef(cart.count);
+  useEffect(() => {
+    if (cart.count > prevCartCount.current) setCartOpen(true);
+    prevCartCount.current = cart.count;
+  }, [cart.count]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [locOpen, setLocOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -145,7 +150,7 @@ export function MarketplaceApp() {
         </div>
         <div style={css("flex:1")} />
         <div onClick={() => setView("selling")} style={css("font-size:14px;font-weight:700;color:var(--maroon);cursor:pointer;padding:0 6px;white-space:nowrap;flex:0 0 auto")}>Sell an item</div>
-        <Hoverable title="Cart" onClick={() => setView("cart")} styles="position:relative;width:40px;height:40px;flex:0 0 auto;border-radius:50%;background:var(--blueBg);display:flex;align-items:center;justify-content:center;cursor:pointer" hover="filter:brightness(.96)">
+        <Hoverable title="Cart" onClick={() => setCartOpen(true)} styles="position:relative;width:40px;height:40px;flex:0 0 auto;border-radius:50%;background:var(--blueBg);display:flex;align-items:center;justify-content:center;cursor:pointer" hover="filter:brightness(.96)">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--blueInk)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <circle cx="9" cy="21" r="1.4" />
             <circle cx="18" cy="21" r="1.4" />
@@ -346,7 +351,6 @@ export function MarketplaceApp() {
             {view === "product" && product && <ProductPage item={product} onBack={goBrowse} onOpenCategory={(slug, name) => openCategory({ name, slug })} onMakeOffer={() => setOfferOpen(true)} />}
             {view === "search" && <SearchPage initialQuery={searchQuery} onOpenProduct={openProduct} />}
             {view === "account" && <AccountPage onBack={goBrowse} />}
-            {view === "cart" && <CartPage onBrowse={goBrowse} onCheckout={() => setView("checkout")} onOpenProduct={openProduct} />}
             {view === "checkout" && <CheckoutPage onBack={() => setView("cart")} onBrowse={goBrowse} onViewOrder={(id) => { setActiveOrderId(id); setView("track"); }} />}
             {view === "track" && <OrderTracking orderId={activeOrderId ?? undefined} onBack={goBrowse} onBrowse={goBrowse} />}
             {view === "info" && infoSlug && <InfoView slug={infoSlug} />}
@@ -358,6 +362,8 @@ export function MarketplaceApp() {
       {locOpen && <LocationModal city={locCity} onCity={setLocCity} onClose={() => setLocOpen(false)} />}
       {createOpen && <CreateModal onClose={() => setCreateOpen(false)} />}
       {product && <OfferModal listing={product} open={offerOpen} onClose={() => setOfferOpen(false)} />}
+      <SideCart open={cartOpen} onClose={() => setCartOpen(false)} onCheckout={() => { setCartOpen(false); setView("checkout"); }} />
+
       {videoId && <VideoLightbox id={videoId} onClose={() => setVideoId(null)} />}
       <ConciergeChat open={chatOpen} onToggle={() => setChatOpen((v) => !v)} />
     </div>
@@ -624,8 +630,11 @@ function LocationModal({ city, onCity, onClose }: { city: string; onCity: (v: st
    AND photo recommendations; anything else falls back to the generic form. */
 const FIELD_INPUT = "width:100%;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:11px 12px;font-size:14px;color:var(--ink);outline:none";
 
+const GROUP_ACCENTS: Record<string, string> = { Fitness: "var(--maroon)", Wellness: "var(--blueInk)", Vehicles: "var(--green)" };
+
 function CreateModal({ onClose }: { onClose: () => void }) {
   const [catName, setCatName] = useState("");
+  const [catFilter, setCatFilter] = useState("");
   const [cond, setCond] = useState<string>("");
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
   const [origPrice, setOrigPrice] = useState("");
@@ -739,14 +748,50 @@ function CreateModal({ onClose }: { onClose: () => void }) {
         </div>
         <p style={css("font-size:13px;color:var(--muted);margin-bottom:18px")}>List it once — Commonplace handles pickup, inspection, delivery, and payment.</p>
         <div style={css("display:flex;flex-direction:column;gap:14px")}>
-          {/* Category — type to find */}
+          {/* Category — visual tile picker */}
           <div>
             <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>What are you selling?</div>
-            <input list="cp-cats" value={catName} onChange={(e) => setCatName(e.target.value)} placeholder="Type a category — e.g. Hot Tub, Peloton Bike+, Golf Cart" style={css(FIELD_INPUT)} />
-            <datalist id="cp-cats">{ALL_CATEGORY_NAMES.map((n) => (<option key={n} value={n} />))}</datalist>
-            {catName.trim().length > 0 && (
+            {catName.trim() ? (
+              <div style={css("display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--greenBg);border:1px solid #bfe0cd;border-radius:12px;padding:11px 14px")}>
+                <div style={css("display:flex;align-items:center;gap:9px;font-size:14px;font-weight:700;color:var(--ink)")}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth={3}><path d="M20 6 9 17l-5-5" /></svg>
+                  {matched?.name ?? catName}
+                </div>
+                <span onClick={() => { setCatName(""); setCatFilter(""); }} style={css("font-size:12.5px;font-weight:700;color:var(--blueInk);cursor:pointer")}>Change</span>
+              </div>
+            ) : (
+              <>
+                <input value={catFilter} onChange={(e) => setCatFilter(e.target.value)} placeholder="Search categories…" style={sx(FIELD_INPUT, "margin-bottom:10px")} />
+                <div style={css("max-height:230px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-right:2px")}>
+                  {CAT_GROUPS.map((g) => {
+                    const q = catFilter.trim().toLowerCase();
+                    const items = q ? g.items.filter((i) => i.name.toLowerCase().includes(q)) : g.items;
+                    if (items.length === 0) return null;
+                    return (
+                      <div key={g.name}>
+                        <div style={sx("display:flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;margin-bottom:7px", { color: GROUP_ACCENTS[g.name] ?? "var(--muted)" })}>
+                          <span style={sx("width:7px;height:7px;border-radius:50%", { background: GROUP_ACCENTS[g.name] ?? "var(--muted)" })} />{g.name}
+                        </div>
+                        <div style={css("display:flex;flex-wrap:wrap;gap:7px")}>
+                          {items.map((it) => (
+                            <Hoverable key={it.slug} onClick={() => setCatName(it.name)} styles="padding:8px 13px;border-radius:10px;border:1px solid var(--line);background:var(--paper);font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;transition:all .13s" hover="border-color:var(--maroon);background:var(--tint)">
+                              {it.name}
+                            </Hoverable>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {catFilter.trim() && !CAT_GROUPS.some((g) => g.items.some((i) => i.name.toLowerCase().includes(catFilter.trim().toLowerCase()))) && (
+                    <div onClick={() => setCatName(catFilter.trim())} style={css("font-size:13px;color:var(--muted);padding:6px 2px;cursor:pointer")}>
+                      Can&apos;t find it? Use <b style={css("color:var(--blueInk)")}>&ldquo;{catFilter.trim()}&rdquo;</b> as a general listing →
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+            {catName.trim() && (
               <div style={sx("display:flex;align-items:center;gap:7px;margin-top:8px;font-size:12px;font-weight:600", { color: isKnown ? "var(--green)" : "var(--muted)" })}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}><path d="M20 6 9 17l-5-5" /></svg>
                 {isKnown ? `A few ${spec.title} details help us price and inspect it right.` : "We'll ask a couple of general details."}
               </div>
             )}
