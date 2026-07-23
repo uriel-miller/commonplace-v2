@@ -99,19 +99,40 @@ export const TXN_FEE_OVERRIDES: Record<string, number> = {
 // Per-category pickup fees in cents (wp_termmeta.pick-up_fee; representative set —
 // full map lives in the DB and can be imported later). Falls back to default.
 export const PICKUP_FEES_CENTS: Record<string, number> = {
-  "hot-tub": 39900,
-  jacuzzi: 39900,
-  "hot-spring": 39900,
+  // ---- Wellness ----
   "swim-spa": 219900,
-  sauna: 45000,
-  "infrared-sauna": 45000,
-  "cold-plunge": 35000,
-  "peloton-tread": 35000,
-  "peloton-tread-plus": 35000,
-  treadmills: 20000,
-  tonal: 25000,
-  "golf-carts": 25000,
-  cars: 0,
+  sauna: 45000, "infrared-sauna": 45000,
+  "hot-tubs": 39900, "hot-tub": 39900, "hot-springs-spa": 39900, "hot-spring": 39900,
+  "american-select-hot-tub": 39900, "master-spas-hot-tub": 39900,
+  jacuzzi: 34900,
+  "float-pod": 40000,
+  "cold-plunge": 27500,
+  "massage-chair": 22500, "soaking-tub": 22500, "steam-bath-generator": 22500,
+  // ---- Fitness ----
+  "peloton-tread-plus": 45000, "peloton-tread": 35000, "peloton-bike-and-tread": 27500,
+  treadmills: 25000, "nordictrack-treadmill": 25000, "proform-treadmill": 25000,
+  stairmaster: 27500, "ergatta-rower": 27500, rower: 27500, hydrow: 27500,
+  "bowflex-bxt8j": 27500, "bowflex-ct200": 27500, "bowflex-treadclimber": 27500, bowflex: 27500,
+  "golf-simulators": 27500,
+  tonal: 22500, "tonal-home-gym": 22500, "smith-machine": 22500, reformer: 22500,
+  "weight-machine": 20000, "home-gym": 20000, "home-gyms": 20000, "functional-trainer": 20000,
+  "peloton-bike-2nd-gen": 20000, "peloton-bike-plus": 20000, "peloton-bike-3rd-gen": 20000,
+  "spin-bike": 20000, "indoor-bikes": 20000, "assault-fitness-bike": 20000, elliptical: 20000,
+  // ---- Vehicles ----
+  cars: 55000, vehicles: 40000,
+  "golf-carts": 34900, "golf-cart-tires": 34900,
+  atv: 40000, "dirt-bike": 40000, scooters: 40000, "jet-skis": 40000, motorcycles: 22500,
+  "mini-moke": 35000, "camper-vans": 35000, "rv-motorhome": 35000,
+  "zero-turn-lawn-mower": 32500, "john-deere-lawn-mower": 27500, "lawn-mower": 27500,
+  // ---- Appliances / furniture (common) ----
+  refrigerators: 27500, "kitchen-appliances": 27500,
+  "electric-range": 29900, "gas-range-stove": 29900, "professional-range": 29700,
+  washer: 22500, dryer: 22500, "washer-and-dryer-set": 22500, "washer-dryer-combo": 22500, dishwasher: 22500,
+  couches: 30000, "living-room-couch": 30000, "pull-out-couch": 30000,
+  sofas: 20000, sectionals: 20000, "sectional-sofas": 20000, "sofa-sets": 20000,
+  "pool-table": 25000, "air-hockey-table": 20000, "pinball-machine": 22500,
+  "dining-tables": 20000, "entertainment-center": 20000,
+  "hospital-beds": 22500, "power-wheelchairs": 22500,
 };
 export const PICKUP_FEE_DEFAULT_CENTS = 19900;
 
