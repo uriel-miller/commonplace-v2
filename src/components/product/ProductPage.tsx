@@ -306,9 +306,6 @@ export function ProductPage({ item, onBack, onOpenCategory, onMakeOffer, onOpenP
         </section>
       )}
 
-      {/* Specifications, delivery, reviews, FAQ */}
-      <ProductExtras item={item} />
-
       {/* Customers also bought */}
       {related && related.length > 0 && (
         <section style={css("margin-top:48px")}>
@@ -334,6 +331,9 @@ export function ProductPage({ item, onBack, onOpenCategory, onMakeOffer, onOpenP
           ))}
         </div>
       </section>
+
+      {/* How Commonplace Compares · By the numbers · What buyers say · Questions · Why Commonplace · Ask the Seller */}
+      <ProductExtras item={item} />
 
       <style>{"@media(max-width:860px){[data-pp-grid]{grid-template-columns:1fr!important;gap:24px!important}[data-pp-steps]{grid-template-columns:1fr 1fr!important}}"}</style>
     </div>
