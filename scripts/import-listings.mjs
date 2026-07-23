@@ -150,7 +150,8 @@ async function main() {
     process.exit(1);
   }
 
-  const prisma = new PrismaClient({ accelerateUrl: databaseUrl });
+  const { PrismaPg } = await import("@prisma/adapter-pg");
+  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: databaseUrl }) });
 
   let page = 1;
   let totalPages = 1;

@@ -12,6 +12,7 @@
     "db:import": "node scripts/import-listings.mjs"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.9.0",
     "@prisma/client": "^7.9.0",
     "next": "16.2.11",
     "prisma": "^7.9.0",

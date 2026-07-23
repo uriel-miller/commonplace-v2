@@ -9,13 +9,16 @@
 // falls back to the live WooCommerce source. This module is server-only.
 
 import { PrismaClient } from "@/generated/prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 
 const databaseUrl = process.env.DATABASE_URL;
 
 function createClient(): PrismaClient | null {
   if (!databaseUrl) return null;
   try {
-    return new PrismaClient({ accelerateUrl: databaseUrl });
+    // Standard Postgres (Railway) via the pg driver adapter.
+    const adapter = new PrismaPg({ connectionString: databaseUrl });
+    return new PrismaClient({ adapter });
   } catch (err) {
     console.warn("[db] Prisma client init failed; data layer will use fallback source.", err);
     return null;
