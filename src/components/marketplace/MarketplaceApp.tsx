@@ -9,13 +9,17 @@ import {
   CONDITIONS,
   FEED,
   BROWSE_CHIPS,
+  ALL_CATEGORY_NAMES,
+  findCategoryBySlug,
   type CatItem,
+  type FeedItem,
 } from "./data";
+import { resolveSellSpec, type Field } from "./sellSchema";
 import { Chevron, ChevronRight, ChevronLeft, Pin, Plus, Close, Search } from "./icons";
 
 const LOGO = "/design-assets/805cd68e-4bc0-474c-9062-282704b82b24.svg";
 
-type View = "browse" | "category" | "buying" | "selling";
+type View = "browse" | "category" | "buying" | "selling" | "product";
 
 // Root CSS custom properties, ported verbatim from the design wrapper (the
 // canvas-scaling hacks — zoom/125vw/125vh — are dropped so it renders 1:1).
@@ -25,6 +29,7 @@ const ROOT_VARS =
 export function MarketplaceApp() {
   const [view, setView] = useState<View>("browse");
   const [category, setCategory] = useState<CatItem | null>(null);
+  const [product, setProduct] = useState<FeedItem | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [locOpen, setLocOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -35,16 +40,21 @@ export function MarketplaceApp() {
   const [priceMin, setPriceMin] = useState("");
   const [priceMax, setPriceMax] = useState("");
 
-  const notCategory = view === "browse" || view === "buying" || view === "selling";
+  const notCategory = view !== "category";
   const isCategory = view === "category";
 
   function openCategory(item: CatItem) {
     setCategory(item);
     setView("category");
   }
+  function openProduct(item: FeedItem) {
+    setProduct(item);
+    setView("product");
+  }
   function goBrowse() {
     setView("browse");
     setCategory(null);
+    setProduct(null);
   }
   function toggleCond(key: string) {
     setConds((prev) => {
@@ -303,10 +313,11 @@ export function MarketplaceApp() {
 
         {/* ============================ MAIN ============================ */}
         <main style={css("flex:1;overflow-y:auto;padding:20px 22px 56px 7px")}>
-          {view === "browse" && <BrowseView locCity={locCity} onOpenCategory={openCategory} />}
-          {view === "category" && category && <CategoryView catName={category.name} results={categoryResults} />}
+          {view === "browse" && <BrowseView locCity={locCity} onOpenProduct={openProduct} />}
+          {view === "category" && category && <CategoryView catName={category.name} results={categoryResults} onOpenProduct={openProduct} />}
           {view === "buying" && <BuyingView onBrowse={goBrowse} />}
           {view === "selling" && <SellingView onBrowse={goBrowse} onNew={() => setCreateOpen(true)} />}
+          {view === "product" && product && <ProductView item={product} onBrowse={goBrowse} onOpenCategory={openCategory} onMakeOffer={() => setCreateOpen(false)} />}
         </main>
       </div>
 
@@ -379,7 +390,7 @@ function SortSelect() {
 }
 
 /* ------------------------------- Browse view ------------------------------- */
-function BrowseView({ locCity, onOpenCategory }: { locCity: string; onOpenCategory: (c: CatItem) => void }) {
+function BrowseView({ locCity, onOpenProduct }: { locCity: string; onOpenProduct: (it: FeedItem) => void }) {
   return (
     <div>
       <div style={css("display:flex;align-items:center;gap:13px;background:#F9AEB7;border:1px solid #f2939e;border-radius:12px;padding:12px 16px;margin-bottom:18px")}>
@@ -406,7 +417,7 @@ function BrowseView({ locCity, onOpenCategory }: { locCity: string; onOpenCatego
       </div>
       <div style={css("display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px")}>
         {FEED.map((it) => (
-          <div key={it.id} onClick={() => onOpenCategory({ name: it.title.split(" ").slice(0, 2).join(" "), slug: it.categorySlug })}>
+          <div key={it.id} onClick={() => onOpenProduct(it)}>
             <ProductCard it={it} />
           </div>
         ))}
@@ -416,7 +427,7 @@ function BrowseView({ locCity, onOpenCategory }: { locCity: string; onOpenCatego
 }
 
 /* ------------------------------- Category view ------------------------------- */
-function CategoryView({ catName, results }: { catName: string; results: typeof FEED }) {
+function CategoryView({ catName, results, onOpenProduct }: { catName: string; results: typeof FEED; onOpenProduct: (it: FeedItem) => void }) {
   return (
     <div>
       <div style={css("display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:16px")}>
@@ -433,7 +444,9 @@ function CategoryView({ catName, results }: { catName: string; results: typeof F
       </div>
       {results.length > 0 ? (
         <div style={css("display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px")}>
-          {results.map((it) => (<ProductCard key={it.id} it={it} tint="#efe7dc" tint2="#e7dccc" />))}
+          {results.map((it) => (
+            <div key={it.id} onClick={() => onOpenProduct(it)}><ProductCard it={it} tint="#efe7dc" tint2="#e7dccc" /></div>
+          ))}
         </div>
       ) : (
         <div style={css("text-align:center;padding:70px 20px;color:var(--muted)")}>
@@ -545,6 +558,68 @@ function SellingView({ onBrowse, onNew }: { onBrowse: () => void; onNew: () => v
   );
 }
 
+/* ------------------------------- Product view ------------------------------- */
+function ProductView({ item, onBrowse, onOpenCategory, onMakeOffer }: {
+  item: FeedItem; onBrowse: () => void; onOpenCategory: (c: CatItem) => void; onMakeOffer: () => void;
+}) {
+  const cat = findCategoryBySlug(item.categorySlug);
+  return (
+    <div style={css("max-width:1000px")}>
+      <div style={css("display:flex;align-items:center;gap:8px;font-size:13.5px;margin-bottom:14px")}>
+        <a onClick={onBrowse} style={css("color:var(--blueInk);font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px")}><ChevronLeft stroke="currentColor" />Browse</a>
+        {cat && (<><span style={css("color:var(--muted)")}>/</span><a onClick={() => onOpenCategory(cat)} style={css("color:var(--blueInk);font-weight:600;cursor:pointer")}>{cat.name}</a></>)}
+      </div>
+      <div style={css("display:grid;grid-template-columns:1.15fr 1fr;gap:26px;align-items:start")}>
+        {/* Media */}
+        <div>
+          <div style={css("position:relative;aspect-ratio:4/3;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:repeating-linear-gradient(135deg,#EDE4D6 0 18px,#E5DACA 18px 36px);display:flex;align-items:center;justify-content:center")}>
+            <span style={css("font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px;letter-spacing:.14em;color:#9a8c78;text-transform:uppercase")}>{item.ph}</span>
+            <div style={css("position:absolute;top:12px;left:12px;background:rgba(255,255,255,.95);color:var(--ink);padding:5px 11px;border-radius:20px;font-size:11.5px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.1)")}>{item.cond}</div>
+          </div>
+          <div style={css("display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px")}>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} style={css("aspect-ratio:1;border-radius:9px;border:1px solid var(--line);background:repeating-linear-gradient(135deg,#EDE4D6 0 10px,#E5DACA 10px 20px)")} />
+            ))}
+          </div>
+        </div>
+        {/* Detail */}
+        <div>
+          <div style={css("font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--blueInk);font-weight:700")}>{cat?.name ?? "Listing"}</div>
+          <h1 style={css("font-family:'Newsreader',serif;font-size:30px;font-weight:500;line-height:1.12;letter-spacing:-.4px;margin-top:4px")}>{item.title}</h1>
+          <div style={css("display:flex;align-items:center;gap:5px;font-size:13px;color:var(--muted);margin-top:8px")}><Pin size={14} />{item.loc} · {item.dist} away</div>
+          <div style={css("font-size:30px;font-weight:800;letter-spacing:-.5px;margin-top:16px")}>{item.price}</div>
+          <div style={css("font-size:13px;color:var(--green);font-weight:600;margin-top:2px")}>Free delivery within 100 miles</div>
+          <div style={css("display:flex;flex-wrap:wrap;gap:7px;margin-top:14px")}>
+            {item.specs.map((s, i) => (
+              <span key={i} style={css("font-size:11px;font-weight:600;color:#6a5f5a;background:var(--putty);border:1px solid var(--line);padding:4px 10px;border-radius:8px")}>{s}</span>
+            ))}
+          </div>
+          <div style={css("display:flex;gap:10px;margin-top:20px")}>
+            <button style={css("flex:1;background:var(--maroon);color:#fff;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit")}>Reserve &amp; buy</button>
+            <button onClick={onMakeOffer} style={css("flex:1;background:#fff;color:var(--maroon);border:1px solid var(--maroon);border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit")}>Make an offer</button>
+          </div>
+          <div style={css("margin-top:18px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px")}>
+            <div style={css("font-size:14px;font-weight:800;margin-bottom:10px")}>How Commonplace protects you</div>
+            {[
+              ["Inspected at pickup", "Our team verifies the item before it ever ships."],
+              ["White-glove delivery", "Delivered and set up in your home — no meetups."],
+              ["Pay after you test it", "Funds only release once it works at your place."],
+            ].map(([t, d]) => (
+              <div key={t} style={css("display:flex;gap:10px;align-items:flex-start;margin-bottom:9px")}>
+                <span style={css("width:18px;height:18px;flex:0 0 auto;border-radius:50%;background:var(--greenBg);color:var(--green);display:flex;align-items:center;justify-content:center;margin-top:1px")}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}><path d="M20 6 9 17l-5-5" /></svg>
+                </span>
+                <div><div style={css("font-size:13px;font-weight:700")}>{t}</div><div style={css("font-size:12px;color:var(--muted);line-height:1.35")}>{d}</div></div>
+              </div>
+            ))}
+          </div>
+          <div style={css("margin-top:12px;font-size:13px;color:var(--muted)")}>Have a question? <span style={css("color:var(--blueInk);font-weight:700;cursor:pointer")}>Ask via Commonplace →</span></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------- Location modal ------------------------------- */
 function LocationModal({ city, onCity, onClose }: { city: string; onCity: (v: string) => void; onClose: () => void }) {
   return (
@@ -564,34 +639,117 @@ function LocationModal({ city, onCity, onClose }: { city: string; onCity: (v: st
   );
 }
 
-/* ------------------------------- Create modal ------------------------------- */
+/* ------------------------------- Create / sell modal -------------------------------
+   Type-to-find the category. Known categories render their specific questions
+   AND photo recommendations; anything else falls back to the generic form. */
+const FIELD_INPUT = "width:100%;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:11px 12px;font-size:14px;color:var(--ink);outline:none";
+
 function CreateModal({ onClose }: { onClose: () => void }) {
+  const [catName, setCatName] = useState("");
   const [cond, setCond] = useState<string>("");
-  const allCats = CAT_GROUPS.flatMap((g) => g.items.map((i) => i.name));
+  const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
+
+  const matched = CAT_GROUPS.flatMap((g) => g.items).find(
+    (i) => i.name.toLowerCase() === catName.trim().toLowerCase(),
+  );
+  const spec = resolveSellSpec(matched?.slug);
+  const isKnown = !!matched && !spec.generic;
+
+  const setAns = (key: string, val: string | string[]) => setAnswers((p) => ({ ...p, [key]: val }));
+  const toggleChip = (key: string, opt: string) =>
+    setAnswers((p) => {
+      const cur = Array.isArray(p[key]) ? (p[key] as string[]) : [];
+      return { ...p, [key]: cur.includes(opt) ? cur.filter((x) => x !== opt) : [...cur, opt] };
+    });
+
+  const label = (f: Field) => (
+    <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>
+      {f.label}{f.required && <span style={css("color:var(--red)")}> *</span>}
+    </div>
+  );
+
+  function renderField(f: Field) {
+    const val = answers[f.key];
+    if (f.type === "textarea") {
+      return (
+        <div key={f.key}>{label(f)}
+          <textarea value={(val as string) ?? ""} onChange={(e) => setAns(f.key, e.target.value)} placeholder={f.placeholder} rows={3} style={sx(FIELD_INPUT, "resize:vertical;line-height:1.4")} />
+        </div>
+      );
+    }
+    if (f.type === "select") {
+      return (
+        <div key={f.key}>{label(f)}
+          <select value={(val as string) ?? ""} onChange={(e) => setAns(f.key, e.target.value)} style={sx(FIELD_INPUT, "cursor:pointer")}>
+            <option value="">Select…</option>
+            {f.options?.map((o) => (<option key={o} value={o}>{o}</option>))}
+          </select>
+        </div>
+      );
+    }
+    if (f.type === "radio" || f.type === "chips") {
+      const multi = f.type === "chips";
+      const selected = multi ? (Array.isArray(val) ? val : []) : val;
+      return (
+        <div key={f.key}>{label(f)}
+          <div style={css("display:flex;flex-wrap:wrap;gap:6px")}>
+            {f.options?.map((o) => {
+              const on = multi ? (selected as string[]).includes(o) : selected === o;
+              return (
+                <div key={o} onClick={() => (multi ? toggleChip(f.key, o) : setAns(f.key, o))}
+                  style={sx("padding:8px 12px;border-radius:16px;font-size:12.5px;font-weight:600;cursor:pointer;transition:all .14s",
+                    on ? { background: "var(--maroon)", color: "#fff", border: "1px solid var(--maroon)" } : { background: "var(--paper)", color: "var(--ink)", border: "1px solid var(--line)" })}>
+                  {o}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div key={f.key}>{label(f)}
+        <input value={(val as string) ?? ""} onChange={(e) => setAns(f.key, e.target.value)} inputMode={f.type === "number" ? "numeric" : undefined} placeholder={f.placeholder} style={css(FIELD_INPUT)} />
+      </div>
+    );
+  }
+
   return (
     <div style={css("position:fixed;inset:0;background:rgba(25,12,18,.55);display:flex;align-items:center;justify-content:center;z-index:200;animation:fade .15s ease both")}>
-      <div style={css("width:520px;max-width:94vw;max-height:90vh;overflow-y:auto;background:var(--cream);border-radius:20px;box-shadow:0 30px 70px rgba(0,0,0,.4);padding:26px")}>
+      <div style={css("width:540px;max-width:94vw;max-height:90vh;overflow-y:auto;background:var(--cream);border-radius:20px;box-shadow:0 30px 70px rgba(0,0,0,.4);padding:26px")}>
         <div style={css("display:flex;align-items:center;justify-content:space-between;margin-bottom:6px")}>
           <div style={css("font-family:'Newsreader',serif;font-size:24px;font-weight:600")}>Create a listing</div>
           <div onClick={onClose} style={css("width:32px;height:32px;border-radius:50%;background:rgba(0,0,0,.05);display:flex;align-items:center;justify-content:center;cursor:pointer")}><Close /></div>
         </div>
         <p style={css("font-size:13px;color:var(--muted);margin-bottom:18px")}>List it once — Commonplace handles pickup, inspection, delivery, and payment.</p>
         <div style={css("display:flex;flex-direction:column;gap:14px")}>
+          {/* Category — type to find */}
           <div>
-            <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>Category</div>
-            <select style={css("width:100%;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:11px 12px;font-size:14px;color:var(--ink);cursor:pointer")}>
-              <option value="">Choose a category…</option>
-              {allCats.map((c) => (<option key={c} value={c}>{c}</option>))}
-            </select>
+            <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>What are you selling?</div>
+            <input list="cp-cats" value={catName} onChange={(e) => setCatName(e.target.value)} placeholder="Type a category — e.g. Hot Tub, Peloton Bike+, Golf Cart" style={css(FIELD_INPUT)} />
+            <datalist id="cp-cats">{ALL_CATEGORY_NAMES.map((n) => (<option key={n} value={n} />))}</datalist>
+            {catName.trim().length > 0 && (
+              <div style={sx("display:flex;align-items:center;gap:7px;margin-top:8px;font-size:12px;font-weight:600", { color: isKnown ? "var(--green)" : "var(--muted)" })}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}><path d="M20 6 9 17l-5-5" /></svg>
+                {isKnown ? `A few ${spec.title} details help us price and inspect it right.` : "We'll ask a couple of general details."}
+              </div>
+            )}
           </div>
+
+          {/* Title */}
           <div>
             <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>Title</div>
-            <input placeholder="e.g. 2022 Peloton Bike+ – Like New" style={css("width:100%;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:11px 12px;font-size:14px;color:var(--ink);outline:none")} />
+            <input placeholder="e.g. 2022 Peloton Bike+ – Like New" style={css(FIELD_INPUT)} />
           </div>
+
+          {/* Category-specific questions */}
+          {spec.questions.map((f) => renderField(f))}
+
+          {/* Price + condition */}
           <div style={css("display:flex;gap:12px")}>
             <div style={css("flex:0 0 150px")}>
               <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>Asking price</div>
-              <input inputMode="numeric" placeholder="$0" style={css("width:100%;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:11px 12px;font-size:14px;color:var(--ink);outline:none")} />
+              <input inputMode="numeric" placeholder="$0" style={css(FIELD_INPUT)} />
             </div>
             <div style={css("flex:1")}>
               <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>Condition</div>
@@ -606,17 +764,34 @@ function CreateModal({ onClose }: { onClose: () => void }) {
               </div>
             </div>
           </div>
+
+          {/* Photos + category-specific recommendations */}
           <div>
             <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>Photos</div>
-            <div style={css("border:2px dashed var(--line);border-radius:12px;padding:24px;text-align:center;color:var(--muted);background:var(--paper)")}>
+            <div style={css("border:2px dashed var(--line);border-radius:12px;padding:22px;text-align:center;color:var(--muted);background:var(--paper)")}>
               <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} style={css("margin-bottom:6px")}><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="11" r="2" /><path d="m3 17 5-4 4 3 3-3 6 5" /></svg>
               <div style={css("font-size:13px;font-weight:600")}>Drag photos here or tap to upload</div>
               <div style={css("font-size:11.5px;margin-top:2px")}>A few phone photos is plenty — our team re-shoots on pickup.</div>
             </div>
+            <div style={css("margin-top:10px;background:var(--blueBg);border:1px solid #cfe0f2;border-radius:12px;padding:12px 14px")}>
+              <div style={css("font-size:12px;font-weight:800;color:var(--blueInk);margin-bottom:7px;display:flex;align-items:center;gap:6px")}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="11" r="2" /><path d="m3 17 5-4 4 3 3-3 6 5" /></svg>
+                {isKnown ? `Recommended photos for ${spec.title}` : "Recommended photos"}
+              </div>
+              <div style={css("display:flex;flex-direction:column;gap:5px")}>
+                {spec.photoTips.map((t, i) => (
+                  <div key={i} style={css("display:flex;align-items:flex-start;gap:7px;font-size:12px;color:var(--ink);line-height:1.35")}>
+                    <span style={css("width:15px;height:15px;flex:0 0 auto;border-radius:50%;background:var(--paper);border:1px solid #cfe0f2;color:var(--blueInk);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;margin-top:1px")}>{i + 1}</span>
+                    {t}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
+
           <div style={css("display:flex;align-items:center;gap:9px;background:var(--yellowBg);border:1px solid #e8dcae;border-radius:12px;padding:11px 13px;font-size:12.5px;line-height:1.4")}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--maroon)" strokeWidth={2} style={css("flex:0 0 auto")}><path d="M12 3 5 6v5c0 4.4 3 8.3 7 9.6 4-1.3 7-5.2 7-9.6V6l-7-3Z" /></svg>
-            <span>We suggest a price from recent comparable sales after you pick a category.</span>
+            <span>We suggest a price from recent comparable sales{isKnown ? ` of ${spec.title.toLowerCase()}s` : ""}.</span>
           </div>
         </div>
         <div onClick={onClose} style={css("text-align:center;background:var(--maroon);color:#fff;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:20px")}>List my item</div>
