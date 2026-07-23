@@ -367,7 +367,7 @@ export function MarketplaceApp() {
             {view === "category" && category && <CategoryView catName={category.name} categorySlug={category.slug} onOpenProduct={openProduct} />}
             {view === "buying" && <BuyingDashboard onBrowse={goBrowse} />}
             {view === "selling" && <SellingDashboard onBrowse={goBrowse} onNew={() => setView("sell")} />}
-            {view === "product" && product && <ProductPage item={product} onBack={goBrowse} onOpenCategory={(slug, name) => openCategory({ name, slug })} onMakeOffer={() => setOfferOpen(true)} />}
+            {view === "product" && product && <ProductPage item={product} onBack={goBrowse} onOpenCategory={(slug, name) => openCategory({ name, slug })} onMakeOffer={() => setOfferOpen(true)} onOpenProduct={openProduct} onRequestItem={() => setChatOpen(true)} />}
             {view === "search" && <SearchPage initialQuery={searchQuery} onOpenProduct={openProduct} />}
             {view === "account" && <AccountPage onBack={goBrowse} />}
             {view === "cart" && <CartPage onBrowse={goBrowse} onCheckout={() => setView("checkout")} onOpenProduct={openProduct} deliverTo={locCity} onChangeAddress={() => setLocOpen(true)} onRequestItem={() => setChatOpen(true)} />}
