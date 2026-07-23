@@ -28,6 +28,8 @@ import { BuyingDashboard } from "@/components/dashboards/BuyingDashboard";
 import { SellingDashboard } from "@/components/dashboards/SellingDashboard";
 import { CheckoutPage } from "@/components/checkout/CheckoutPage";
 import { OrderTracking } from "@/components/orders/OrderTracking";
+import { LocationPicker } from "@/components/location/LocationPicker";
+import { CartExitPopup } from "@/components/cart/CartExitPopup";
 import { submitListing, previewPayout } from "@/lib/createListing";
 
 const LEARN_VIDEOS = [
@@ -366,6 +368,7 @@ export function MarketplaceApp() {
 
       {videoId && <VideoLightbox id={videoId} onClose={() => setVideoId(null)} />}
       <ConciergeChat open={chatOpen} onToggle={() => setChatOpen((v) => !v)} />
+      <CartExitPopup enabled={cart.count > 0} onClose={() => {}} />
     </div>
   );
 }
@@ -615,11 +618,7 @@ function LocationModal({ city, onCity, onClose }: { city: string; onCity: (v: st
           <div style={css("font-family:'Newsreader',serif;font-size:24px;font-weight:600")}>Select your location</div>
           <div onClick={onClose} style={css("width:32px;height:32px;border-radius:50%;background:rgba(0,0,0,.05);display:flex;align-items:center;justify-content:center;cursor:pointer")}><Close /></div>
         </div>
-        <div style={css("display:flex;align-items:center;gap:10px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:11px")}>
-          <Pin size={18} stroke="var(--maroon)" />
-          <input value={city} onChange={(e) => onCity(e.target.value)} placeholder="City, state" style={css("flex:1;border:none;outline:none;font-size:15px;font-weight:600;color:var(--ink);background:transparent")} />
-        </div>
-        <div onClick={onClose} style={css("text-align:center;background:var(--maroon);color:#fff;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer")}>Update</div>
+        <LocationPicker city={city} onCity={onCity} onConfirm={(sel) => { onCity(sel.city); onClose(); }} />
       </div>
     </div>
   );
@@ -630,13 +629,8 @@ function LocationModal({ city, onCity, onClose }: { city: string; onCity: (v: st
    AND photo recommendations; anything else falls back to the generic form. */
 const FIELD_INPUT = "width:100%;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:11px 12px;font-size:14px;color:var(--ink);outline:none";
 
-const GROUP_ACCENTS: Record<string, string> = { Fitness: "var(--maroon)", Wellness: "var(--blueInk)", Vehicles: "var(--green)" };
-
 function CreateModal({ onClose }: { onClose: () => void }) {
   const [catName, setCatName] = useState("");
-  const [catFilter, setCatFilter] = useState("");
-  const [group, setGroup] = useState<string | null>(null);
-  const [genericMode, setGenericMode] = useState(false);
   const [cond, setCond] = useState<string>("");
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
   const [origPrice, setOrigPrice] = useState("");
@@ -652,8 +646,6 @@ function CreateModal({ onClose }: { onClose: () => void }) {
   );
   const spec = resolveSellSpec(matched?.slug);
   const isKnown = !!matched && !spec.generic;
-  const picked = catName.trim().length > 0 || genericMode;
-  const resetCategory = () => { setCatName(""); setCatFilter(""); setGroup(null); setGenericMode(false); };
 
   const toCents = (s: string) => Math.round((parseFloat(s.replace(/[^0-9.]/g, "")) || 0) * 100);
   const priceCents = toCents(price);
@@ -752,83 +744,29 @@ function CreateModal({ onClose }: { onClose: () => void }) {
         </div>
         <p style={css("font-size:13px;color:var(--muted);margin-bottom:18px")}>List it once — Commonplace handles pickup, inspection, delivery, and payment.</p>
         <div style={css("display:flex;flex-direction:column;gap:14px")}>
-          {/* Category — visual tile picker */}
+          {/* Title — generic, always first */}
           <div>
-            <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>What are you selling?</div>
-            {picked ? (
-              <div style={css("display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--greenBg);border:1px solid #bfe0cd;border-radius:12px;padding:11px 14px")}>
-                <div style={css("display:flex;align-items:center;gap:9px;font-size:14px;font-weight:700;color:var(--ink)")}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth={3}><path d="M20 6 9 17l-5-5" /></svg>
-                  {matched?.name ?? (genericMode ? "General item" : catName)}
-                </div>
-                <span onClick={resetCategory} style={css("font-size:12.5px;font-weight:700;color:var(--blueInk);cursor:pointer")}>Change</span>
-              </div>
-            ) : (
-              <>
-                <input value={catFilter} onChange={(e) => setCatFilter(e.target.value)} placeholder="Search categories…" style={sx(FIELD_INPUT, "margin-bottom:12px")} />
-                {catFilter.trim() ? (
-                  // Search results across all groups
-                  (() => {
-                    const q = catFilter.trim().toLowerCase();
-                    const hits = CAT_GROUPS.flatMap((g) => g.items).filter((i) => i.name.toLowerCase().includes(q));
-                    return hits.length > 0 ? (
-                      <div style={css("display:flex;flex-wrap:wrap;gap:7px")}>
-                        {hits.map((it) => (
-                          <Hoverable key={it.slug} onClick={() => setCatName(it.name)} styles="padding:9px 14px;border-radius:10px;border:1px solid var(--line);background:var(--paper);font-size:13px;font-weight:600;cursor:pointer;transition:all .13s" hover="border-color:var(--maroon);background:var(--tint)">{it.name}</Hoverable>
-                        ))}
-                      </div>
-                    ) : (
-                      <div onClick={() => setGenericMode(true)} style={css("background:var(--putty);border:1px dashed var(--line);border-radius:12px;padding:16px;text-align:center;cursor:pointer")}>
-                        <div style={css("font-size:13.5px;font-weight:700;color:var(--ink)")}>No match for &ldquo;{catFilter.trim()}&rdquo;</div>
-                        <div style={css("font-size:12.5px;color:var(--blueInk);font-weight:700;margin-top:3px")}>Use the general form →</div>
-                      </div>
-                    );
-                  })()
-                ) : group ? (
-                  // Drilled into one parent → its subcategories
-                  <>
-                    <div onClick={() => setGroup(null)} style={css("display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;color:var(--blueInk);cursor:pointer;margin-bottom:10px")}>
-                      <ChevronLeft size={13} stroke="currentColor" />All categories
-                    </div>
-                    <div style={css("display:flex;flex-wrap:wrap;gap:7px")}>
-                      {(CAT_GROUPS.find((g) => g.name === group)?.items ?? []).map((it) => (
-                        <Hoverable key={it.slug} onClick={() => setCatName(it.name)} styles="padding:9px 14px;border-radius:10px;border:1px solid var(--line);background:var(--paper);font-size:13px;font-weight:600;cursor:pointer;transition:all .13s" hover="border-color:var(--maroon);background:var(--tint)">{it.name}</Hoverable>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  // Top level → three parent tiles + general-form escape hatch
-                  <>
-                    <div style={css("display:grid;grid-template-columns:repeat(3,1fr);gap:10px")}>
-                      {CAT_GROUPS.map((g) => (
-                        <Hoverable key={g.name} onClick={() => setGroup(g.name)} styles="border:1px solid var(--line);border-radius:14px;padding:16px 12px;cursor:pointer;text-align:center;transition:all .14s;background:var(--paper)" hover="border-color:var(--maroon);box-shadow:0 6px 18px rgba(60,10,35,.1)">
-                          <div style={sx("width:40px;height:40px;margin:0 auto 9px;border-radius:11px;display:flex;align-items:center;justify-content:center", { background: `color-mix(in srgb, ${GROUP_ACCENTS[g.name] ?? "var(--maroon)"} 13%, white)`, color: GROUP_ACCENTS[g.name] ?? "var(--maroon)" })}>
-                            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round"><path d={g.iconPath} /></svg>
-                          </div>
-                          <div style={css("font-size:14px;font-weight:700;color:var(--ink)")}>{g.name}</div>
-                          <div style={css("font-size:11px;color:var(--muted);margin-top:2px")}>{g.items.length} types</div>
-                        </Hoverable>
-                      ))}
-                    </div>
-                    <div onClick={() => setGenericMode(true)} style={css("text-align:center;margin-top:12px;font-size:13px;font-weight:700;color:var(--blueInk);cursor:pointer")}>
-                      I don&apos;t see my category — use the general form →
-                    </div>
-                  </>
-                )}
-              </>
-            )}
-            {picked && (
-              <div style={sx("display:flex;align-items:center;gap:7px;margin-top:8px;font-size:12px;font-weight:600", { color: isKnown ? "var(--green)" : "var(--muted)" })}>
-                {isKnown ? `A few ${spec.title} details help us price and inspect it right.` : "Just a few general details — we handle the rest."}
-              </div>
-            )}
+            <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>What are you selling? <span style={css("color:var(--muted);font-weight:500")}>(a title — AI polishes it)</span></div>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Peloton Bike+, Sub-Zero fridge, leather sofa…" style={css(FIELD_INPUT)} />
           </div>
 
-          {picked && (<>
-          {/* Title */}
+          {/* Category — optional dropdown, never a gate */}
           <div>
-            <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>Title <span style={css("color:var(--muted);font-weight:500")}>(optional — AI writes one if blank)</span></div>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. 2022 Peloton Bike+ – Like New" style={css(FIELD_INPUT)} />
+            <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>Category <span style={css("color:var(--muted);font-weight:500")}>(optional — helps us price &amp; inspect it)</span></div>
+            <select value={matched?.slug ?? ""} onChange={(e) => { const it = CAT_GROUPS.flatMap((g) => g.items).find((i) => i.slug === e.target.value); setCatName(it?.name ?? ""); }} style={sx(FIELD_INPUT, "cursor:pointer")}>
+              <option value="">Select a category (optional)</option>
+              {CAT_GROUPS.map((g) => (
+                <optgroup key={g.name} label={g.name}>
+                  {g.items.map((it) => (<option key={it.slug} value={it.slug}>{it.name}</option>))}
+                </optgroup>
+              ))}
+            </select>
+            {isKnown && (
+              <div style={css("display:flex;align-items:center;gap:7px;margin-top:8px;font-size:12px;font-weight:600;color:var(--green)")}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}><path d="M20 6 9 17l-5-5" /></svg>
+                A few {spec.title} details below help us price it right.
+              </div>
+            )}
           </div>
 
           {/* Category-specific questions */}
@@ -909,9 +847,8 @@ function CreateModal({ onClose }: { onClose: () => void }) {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--maroon)" strokeWidth={2} style={css("flex:0 0 auto")}><path d="M12 3 5 6v5c0 4.4 3 8.3 7 9.6 4-1.3 7-5.2 7-9.6V6l-7-3Z" /></svg>
             <span>We suggest a price from recent comparable sales{isKnown ? ` of ${spec.title.toLowerCase()}s` : ""}.</span>
           </div>
-          </>)}
         </div>
-        {picked && (result ? (
+        {result ? (
           <div style={css("text-align:center;margin-top:20px;background:var(--greenBg);border:1px solid #bfe0cd;border-radius:12px;padding:16px")}>
             <div style={css("font-size:14px;font-weight:800;color:var(--green)")}>Listing submitted ✓</div>
             <div style={css("font-size:13px;color:var(--ink);margin-top:4px")}>{result}</div>
@@ -919,7 +856,7 @@ function CreateModal({ onClose }: { onClose: () => void }) {
           </div>
         ) : (
           <div onClick={handleSubmit} style={sx("text-align:center;color:#fff;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:20px", { background: submitting ? "var(--maroon2)" : "var(--maroon)", opacity: submitting ? 0.85 : 1 })}>{submitting ? "Listing your item…" : "List my item"}</div>
-        ))}
+        )}
       </div>
     </div>
   );

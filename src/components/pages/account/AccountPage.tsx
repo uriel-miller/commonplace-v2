@@ -1,52 +1,189 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { css, sx, Hoverable } from "@/lib/design/css";
 import { formatPrice } from "@/lib/listing";
-import { Pin, Plus, Close, ChevronLeft } from "@/components/marketplace/icons";
+import type { OrderRecord, OrderStatus } from "@/lib/orders";
+import type { OfferDTO, OfferStatus } from "@/lib/offers";
+
+// Client-safe status labels (importing the value from @/lib/orders would pull
+// the server-only Prisma client into the client bundle).
+const STATUS_LABEL: Record<string, string> = {
+  reserved: "Reserved", scheduled: "Scheduled", picked_up: "Picked up",
+  in_transit: "In transit", delivered: "Delivered", paid: "Paid", cancelled: "Cancelled",
+};
+import { Pin, Plus, ChevronLeft } from "@/components/marketplace/icons";
 import {
-  PROFILE,
-  PURCHASES,
-  OFFERS,
-  SAVED_ITEMS,
-  PAYMENT_METHODS,
+  CUSTOMER,
   ADDRESSES,
-  NOTIFICATION_SETTINGS,
-  BRAND_STYLE,
-  type TabKey,
-  type Purchase,
-  type PurchaseStatus,
-  type Offer,
-  type OfferStatus,
-  type SavedItem,
-  type PaymentMethod,
-  type Address,
-  type NotificationSetting,
-  type Tint,
-} from "./data";
+  SAVED_CARDS,
+  LISTINGS_FALLBACK,
+  CARD_BRAND_STYLE,
+  LISTING_STATUS_STYLE,
+  type SavedCard,
+  type AddressCard,
+  type ListingRow,
+} from "./accountFixtures";
 
 // Root CSS custom properties, ported verbatim from the design wrapper so the
 // page renders correctly whether it's mounted standalone or inside the shell
 // (re-declaring the same variables on a nested wrapper is harmless).
 const ROOT_VARS =
-  "--cream:#FAF5EE;--paper:#ffffff;--ink:#231A1D;--muted:#7C7069;--line:#ECE4D8;--maroon:#5B1A2E;--maroon2:#7A2740;--tint:#F4E7EA;--putty:#f6f1ea;--gold:#C98A22;--blue:#7FA8D9;--purple:#9C88D6;--yellow:#E7C24B;--red:#C15540;--green:#3B7A57;--greenBg:#E1F0E7;--blueBg:#E4EDF8;--blueInk:#2C5B8A;--fbblue:#1877F2;--fbbtn:#E7F3FF;--yellowBg:#F7EDCE";
+  "--cream:#FAF5EE;--paper:#ffffff;--ink:#231A1D;--muted:#7C7069;--line:#ECE4D8;--maroon:#5B1A2E;--maroon2:#7A2740;--tint:#F4E7EA;--putty:#f6f1ea;--gold:#C98A22;--blue:#7FA8D9;--purple:#9C88D6;--yellow:#E7C24B;--red:#C15540;--green:#3B7A57;--greenBg:#E1F0E7;--blueBg:#E4EDF8;--blueInk:#2C5B8A";
 
-const TABS: { key: TabKey; label: string; count?: number }[] = [
-  { key: "purchases", label: "Purchases", count: PURCHASES.length },
-  { key: "offers", label: "Offers", count: OFFERS.length },
-  { key: "saved", label: "Saved", count: SAVED_ITEMS.length },
-  { key: "payments", label: "Payment methods" },
+/* ------------------------------------------------------------------ */
+/* Nav model                                                          */
+/* ------------------------------------------------------------------ */
+
+type TabKey =
+  | "dashboard"
+  | "orders"
+  | "addresses"
+  | "payment-methods"
+  | "account-details"
+  | "my-listings"
+  | "counter-offers";
+
+const NAV: { key: TabKey; label: string }[] = [
+  { key: "dashboard", label: "Dashboard" },
+  { key: "orders", label: "Orders" },
   { key: "addresses", label: "Addresses" },
-  { key: "settings", label: "Settings" },
+  { key: "payment-methods", label: "Payment methods" },
+  { key: "account-details", label: "Account details" },
+  { key: "my-listings", label: "My Listings" },
+  { key: "counter-offers", label: "Counter Offers" },
 ];
 
 export interface AccountPageProps {
-  /** Optional "back to browse" affordance; a breadcrumb renders only when set. */
+  /** Optional "back to browse" affordance used by the shell. */
   onBack?: () => void;
 }
 
+/* ------------------------------------------------------------------ */
+/* Shared helpers                                                     */
+/* ------------------------------------------------------------------ */
+
+function fmtDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+}
+
+function Notice({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={css("background:var(--blueBg);color:var(--blueInk);border-radius:10px;padding:13px 16px;font-size:14px;line-height:1.5;margin-bottom:22px")}>
+      {children}
+    </div>
+  );
+}
+
+function PageHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 style={css("font-family:'Newsreader',serif;font-size:22px;font-weight:600;letter-spacing:-.3px;color:var(--ink);margin-bottom:16px")}>
+      {children}
+    </h2>
+  );
+}
+
+function PrimaryButton({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
+  return (
+    <Hoverable
+      as="button"
+      onClick={onClick}
+      styles="display:inline-flex;align-items:center;gap:7px;background:var(--maroon);color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap"
+      hover="filter:brightness(1.08)"
+    >
+      {children}
+    </Hoverable>
+  );
+}
+
+function GhostButton({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
+  return (
+    <Hoverable
+      as="button"
+      onClick={onClick}
+      styles="display:inline-flex;align-items:center;gap:7px;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:9px 15px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap"
+      hover="border-color:#d9b7c2;box-shadow:0 4px 12px rgba(60,10,35,.08)"
+    >
+      {children}
+    </Hoverable>
+  );
+}
+
+function LinkA({ label, onClick, tone = "blue" }: { label: string; onClick?: () => void; tone?: "blue" | "red" | "muted" }) {
+  const color = tone === "red" ? "var(--red)" : tone === "muted" ? "var(--muted)" : "var(--blueInk)";
+  return (
+    <Hoverable
+      as="span"
+      onClick={onClick}
+      styles={sx("font-size:13px;font-weight:700;cursor:pointer", { color })}
+      hover="text-decoration:underline"
+    >
+      {label}
+    </Hoverable>
+  );
+}
+
+function EmptyState({ title, text, cta, onCta }: { title: string; text: string; cta?: string; onCta?: () => void }) {
+  return (
+    <div style={css("text-align:center;padding:52px 22px;background:var(--paper);border:1px solid var(--line);border-radius:14px")}>
+      <div style={css("width:50px;height:50px;margin:0 auto 14px;border-radius:50%;background:var(--putty);display:flex;align-items:center;justify-content:center")}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M4 9h16l-1-4.5H5L4 9Z" /><path d="M5 9v10.5h14V9" /></svg>
+      </div>
+      <div style={css("font-family:'Newsreader',serif;font-size:19px;color:var(--ink);margin-bottom:6px")}>{title}</div>
+      <div style={css("font-size:14px;color:var(--muted);max-width:380px;margin:0 auto 16px")}>{text}</div>
+      {cta && <PrimaryButton onClick={onCta}>{cta}</PrimaryButton>}
+    </div>
+  );
+}
+
+function Loading({ label }: { label: string }) {
+  return (
+    <div style={css("display:flex;align-items:center;justify-content:center;gap:11px;padding:56px 20px;color:var(--muted);font-size:14px")}>
+      <span
+        style={css("width:18px;height:18px;border-radius:50%;border:2.5px solid var(--line);border-top-color:var(--maroon);display:inline-block;animation:cp-acct-spin .7s linear infinite")}
+      />
+      {label}
+    </div>
+  );
+}
+
+function StatusBadge({ label, bg, color }: { label: string; bg: string; color: string }) {
+  return (
+    <span style={sx("display:inline-block;font-size:12px;font-weight:800;padding:4px 11px;border-radius:20px;white-space:nowrap", { background: bg, color })}>
+      {label}
+    </span>
+  );
+}
+
+/** Small placeholder tile for rows/cards missing a real remote image. */
+function Thumb({ src, size = 46 }: { src: string | null; size?: number }) {
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt=""
+        loading="lazy"
+        style={sx("flex:0 0 auto;object-fit:cover;border-radius:8px;border:1px solid var(--line)", { width: `${size}px`, height: `${size}px` })}
+      />
+    );
+  }
+  return (
+    <div
+      style={sx("flex:0 0 auto;border-radius:8px;border:1px solid var(--line);background:repeating-linear-gradient(135deg,#EDE4D6 0 8px,#E5DACA 8px 16px)", { width: `${size}px`, height: `${size}px` })}
+    />
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Page                                                               */
+/* ------------------------------------------------------------------ */
+
 export function AccountPage({ onBack }: AccountPageProps = {}) {
-  const [tab, setTab] = useState<TabKey>("purchases");
+  const [tab, setTab] = useState<TabKey>("dashboard");
+  const [loggedOut, setLoggedOut] = useState(false);
 
   return (
     <div
@@ -55,548 +192,661 @@ export function AccountPage({ onBack }: AccountPageProps = {}) {
         "font-family:'Inter Tight',system-ui,-apple-system,'Helvetica Neue',sans-serif;color:var(--ink);min-height:100dvh;width:100%;background:var(--cream);overflow-y:auto",
       )}
     >
+      {/* Keyframes for the loading spinner (scoped by unique animation name). */}
+      <style>{"@keyframes cp-acct-spin{to{transform:rotate(360deg)}}"}</style>
+
       <div style={css("max-width:1060px;margin:0 auto;padding:22px 22px 72px")}>
         {onBack && (
           <div style={css("display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:14px")}>
-            <a onClick={onBack} style={css("color:var(--blueInk);font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px")}>
+            <span onClick={onBack} style={css("color:var(--blueInk);font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px")}>
               <ChevronLeft stroke="currentColor" />Browse
-            </a>
-            <span style={css("color:var(--muted)")}>/ Account</span>
+            </span>
+            <span style={css("color:var(--muted)")}>/ My account</span>
           </div>
         )}
 
-        <ProfileHeader />
+        <h1 style={css("font-family:'Newsreader',serif;font-size:30px;font-weight:600;letter-spacing:-.4px;line-height:1.1;margin-bottom:22px")}>
+          My account
+        </h1>
 
-        {/* Tab bar */}
-        <div style={css("display:flex;gap:7px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin:22px 0 24px;padding-bottom:2px")}>
-          {TABS.map((t) => {
-            const active = tab === t.key;
-            return (
-              <Hoverable
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                styles={sx(
-                  "position:relative;display:flex;align-items:center;gap:7px;padding:10px 14px;font-size:14px;font-weight:700;cursor:pointer;border-radius:10px 10px 0 0;transition:color .15s,background .15s",
-                  active ? { color: "var(--maroon)" } : { color: "var(--muted)" },
-                )}
-                hover={active ? "" : "color:var(--ink);background:var(--putty)"}
-              >
-                {t.label}
-                {typeof t.count === "number" && (
-                  <span
-                    style={sx(
-                      "min-width:19px;height:19px;padding:0 5px;border-radius:10px;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center",
-                      active
-                        ? { background: "var(--maroon)", color: "#fff" }
-                        : { background: "var(--putty)", color: "var(--muted)" },
-                    )}
+        {loggedOut ? (
+          <LoggedOut onBack={onBack} onBackIn={() => { setLoggedOut(false); setTab("dashboard"); }} />
+        ) : (
+          <div style={css("display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start")}>
+            {/* LEFT — vertical tab nav */}
+            <nav style={css("flex:0 0 224px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:8px;box-shadow:0 3px 10px rgba(60,10,35,.05)")}>
+              <ul style={css("list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px")}>
+                {NAV.map((item) => {
+                  const active = tab === item.key;
+                  return (
+                    <li key={item.key}>
+                      <Hoverable
+                        as="a"
+                        aria-current={active ? "page" : undefined}
+                        onClick={() => setTab(item.key)}
+                        styles={sx(
+                          "display:block;padding:11px 14px;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;transition:background .14s,color .14s;text-decoration:none",
+                          active
+                            ? { background: "var(--maroon)", color: "#fff" }
+                            : { background: "transparent", color: "var(--ink)" },
+                        )}
+                        hover={active ? "" : "background:var(--putty)"}
+                      >
+                        {item.label}
+                      </Hoverable>
+                    </li>
+                  );
+                })}
+                <li style={css("margin-top:4px;padding-top:6px;border-top:1px solid var(--line)")}>
+                  <Hoverable
+                    as="a"
+                    onClick={() => setLoggedOut(true)}
+                    styles="display:block;padding:11px 14px;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;color:var(--red);text-decoration:none"
+                    hover="background:#F5EAE7"
                   >
-                    {t.count}
-                  </span>
-                )}
-                {active && (
-                  <span style={css("position:absolute;left:8px;right:8px;bottom:-3px;height:3px;border-radius:3px;background:var(--maroon)")} />
-                )}
-              </Hoverable>
-            );
-          })}
-        </div>
+                    Log out
+                  </Hoverable>
+                </li>
+              </ul>
+            </nav>
 
-        {/* Panels */}
-        {tab === "purchases" && <PurchasesPanel />}
-        {tab === "offers" && <OffersPanel />}
-        {tab === "saved" && <SavedPanel />}
-        {tab === "payments" && <PaymentsPanel />}
-        {tab === "addresses" && <AddressesPanel />}
-        {tab === "settings" && <SettingsPanel />}
+            {/* RIGHT — active tab content */}
+            <div style={css("flex:1 1 360px;min-width:0")}>
+              {tab === "dashboard" && <DashboardPanel onNavigate={setTab} onLogout={() => setLoggedOut(true)} />}
+              {tab === "orders" && <OrdersPanel onBrowse={onBack} />}
+              {tab === "addresses" && <AddressesPanel />}
+              {tab === "payment-methods" && <PaymentMethodsPanel />}
+              {tab === "account-details" && <AccountDetailsPanel />}
+              {tab === "my-listings" && <MyListingsPanel onBrowse={onBack} />}
+              {tab === "counter-offers" && <CounterOffersPanel onBrowse={onBack} />}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-/* =============================== Profile header =============================== */
-function ProfileHeader() {
-  const spent = PURCHASES.reduce((sum, p) => sum + p.priceCents, 0);
-  const stats: [string, string][] = [
-    [String(PURCHASES.length), "Purchases"],
-    [String(SAVED_ITEMS.length), "Saved"],
-    [`${PROFILE.rating.toFixed(1)} ★`, `${PROFILE.reviewCount} reviews`],
-    [formatPrice(spent), "Lifetime spend"],
-  ];
+/* ------------------------------------------------------------------ */
+/* Logged-out view                                                    */
+/* ------------------------------------------------------------------ */
+
+function LoggedOut({ onBack, onBackIn }: { onBack?: () => void; onBackIn: () => void }) {
   return (
-    <div style={css("background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:20px 22px;box-shadow:0 3px 10px rgba(60,10,35,.05)")}>
-      <div style={css("display:flex;align-items:center;gap:18px;flex-wrap:wrap")}>
-        <span style={css("width:74px;height:74px;flex:0 0 auto;border-radius:50%;background:var(--blueInk);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Newsreader',serif;font-size:32px;font-weight:600;box-shadow:0 6px 16px rgba(44,91,138,.28)")}>
-          {PROFILE.initial}
-        </span>
-        <div style={css("flex:1;min-width:180px")}>
-          <div style={css("display:flex;align-items:center;gap:10px;flex-wrap:wrap")}>
-            <h1 style={css("font-family:'Newsreader',serif;font-size:28px;font-weight:600;letter-spacing:-.4px;line-height:1.1")}>{PROFILE.name}</h1>
-            {PROFILE.verified && (
-              <span style={css("display:inline-flex;align-items:center;gap:5px;background:var(--greenBg);color:var(--green);font-size:12px;font-weight:800;padding:5px 11px;border-radius:20px")}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
-                Verified
-              </span>
-            )}
-          </div>
-          <div style={css("display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:6px;color:var(--muted);font-size:13.5px")}>
-            <span style={css("display:flex;align-items:center;gap:5px")}><Pin size={14} stroke="var(--maroon)" />{PROFILE.city}</span>
-            <span style={css("width:4px;height:4px;border-radius:50%;background:var(--line)")} />
-            <span>Member since {PROFILE.memberSince}</span>
-          </div>
-        </div>
-        <Hoverable
-          styles="border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:10px;padding:10px 16px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap"
-          hover="box-shadow:0 6px 16px rgba(60,10,35,.1);border-color:#d9b7c2"
-        >
-          Edit profile
-        </Hoverable>
+    <div style={css("text-align:center;padding:56px 22px;background:var(--paper);border:1px solid var(--line);border-radius:16px;max-width:520px;margin:0 auto")}>
+      <div style={css("font-family:'Newsreader',serif;font-size:24px;color:var(--ink);margin-bottom:8px")}>You are now logged out</div>
+      <div style={css("font-size:14px;color:var(--muted);margin-bottom:20px")}>Thanks for stopping by. See you again soon.</div>
+      <div style={css("display:flex;gap:10px;justify-content:center;flex-wrap:wrap")}>
+        {onBack && <PrimaryButton onClick={onBack}>Return to browsing</PrimaryButton>}
+        <GhostButton onClick={onBackIn}>Log back in</GhostButton>
       </div>
-      <div style={css("display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:20px")}>
-        {stats.map(([n, l]) => (
-          <div key={l} style={css("background:var(--cream);border:1px solid var(--line);border-radius:12px;padding:13px 14px")}>
-            <div style={css("font-size:20px;font-weight:800;letter-spacing:-.4px")}>{n}</div>
-            <div style={css("font-size:12px;color:var(--muted);margin-top:1px")}>{l}</div>
-          </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Dashboard                                                          */
+/* ------------------------------------------------------------------ */
+
+function DashboardPanel({ onNavigate, onLogout }: { onNavigate: (t: TabKey) => void; onLogout: () => void }) {
+  return (
+    <div style={css("background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:24px;box-shadow:0 3px 10px rgba(60,10,35,.05)")}>
+      <p style={css("font-size:15px;line-height:1.6;color:var(--ink);margin-bottom:14px")}>
+        Hello <b>{CUSTOMER.displayName}</b>{" "}
+        (not {CUSTOMER.displayName}?{" "}
+        <LinkA label="Log out" onClick={onLogout} />)
+      </p>
+      <p style={css("font-size:15px;line-height:1.6;color:var(--muted)")}>
+        From your account dashboard you can view your{" "}
+        <LinkA label="recent orders" onClick={() => onNavigate("orders")} />, manage your{" "}
+        <LinkA label="shipping and billing addresses" onClick={() => onNavigate("addresses")} />, and{" "}
+        <LinkA label="edit your password and account details" onClick={() => onNavigate("account-details")} />.
+      </p>
+
+      <div style={css("display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:11px;margin-top:22px")}>
+        {([
+          ["Orders", "orders"],
+          ["Addresses", "addresses"],
+          ["My Listings", "my-listings"],
+          ["Counter Offers", "counter-offers"],
+        ] as const).map(([label, key]) => (
+          <Hoverable
+            key={key}
+            onClick={() => onNavigate(key)}
+            styles="background:var(--cream);border:1px solid var(--line);border-radius:11px;padding:15px 16px;cursor:pointer;font-size:14px;font-weight:700;color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:8px"
+            hover="border-color:#d9b7c2;background:var(--paper)"
+          >
+            {label}
+            <span style={css("color:var(--maroon)")}>→</span>
+          </Hoverable>
         ))}
       </div>
     </div>
   );
 }
 
-/* =============================== Shared bits =============================== */
-function Thumb({ tint, size = 62, radius = 10 }: { tint: Tint; size?: number; radius?: number }) {
+/* ------------------------------------------------------------------ */
+/* Orders                                                             */
+/* ------------------------------------------------------------------ */
+
+const ORDER_TONE: Record<OrderStatus, { bg: string; color: string }> = {
+  reserved: { bg: "var(--putty)", color: "var(--muted)" },
+  scheduled: { bg: "#F7EDCE", color: "var(--gold)" },
+  picked_up: { bg: "var(--blueBg)", color: "var(--blueInk)" },
+  in_transit: { bg: "var(--blueBg)", color: "var(--blueInk)" },
+  delivered: { bg: "var(--greenBg)", color: "var(--green)" },
+  paid: { bg: "var(--greenBg)", color: "var(--green)" },
+  cancelled: { bg: "#F5EAE7", color: "var(--red)" },
+};
+
+function OrdersPanel({ onBrowse }: { onBrowse?: () => void }) {
+  const [orders, setOrders] = useState<OrderRecord[] | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch("/api/orders?limit=50", { signal: ctrl.signal });
+        const data: unknown = await res.json();
+        const list =
+          data && typeof data === "object" && Array.isArray((data as { orders?: unknown }).orders)
+            ? ((data as { orders: OrderRecord[] }).orders)
+            : [];
+        setOrders(list);
+      } catch (err) {
+        if ((err as { name?: string })?.name === "AbortError") return;
+        setError(true);
+        setOrders([]);
+      }
+    })();
+    return () => ctrl.abort();
+  }, []);
+
   return (
-    <div
-      style={sx(
-        "flex:0 0 auto",
-        {
-          width: `${size}px`,
-          height: `${size}px`,
-          borderRadius: `${radius}px`,
-          background: `repeating-linear-gradient(135deg,${tint[0]} 0 10px,${tint[1]} 10px 20px)`,
-        },
+    <div>
+      <PageHeading>Orders</PageHeading>
+      {orders === null ? (
+        <Loading label="Loading your orders…" />
+      ) : orders.length === 0 ? (
+        <EmptyState
+          title={error ? "We couldn’t load your orders" : "No order has been made yet"}
+          text={error ? "Please try again in a moment — your orders are safe." : "Once you reserve something on Commonplace, it shows up here with live delivery status."}
+          cta="Browse products"
+          onCta={onBrowse}
+        />
+      ) : (
+        <div style={css("overflow-x:auto;background:var(--paper);border:1px solid var(--line);border-radius:14px")}>
+          <table style={css("width:100%;border-collapse:collapse;font-size:14px;min-width:560px")}>
+            <thead>
+              <tr>
+                {["Order", "Date", "Status", "Total", "Actions"].map((h) => (
+                  <th key={h} style={css("text-align:left;padding:14px 16px;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);white-space:nowrap")}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map((o) => {
+                const tone = ORDER_TONE[o.status] ?? ORDER_TONE.reserved;
+                const delivered = o.status === "delivered" || o.status === "paid";
+                return (
+                  <tr key={o.id}>
+                    <td style={css("padding:14px 16px;border-bottom:1px solid var(--line);white-space:nowrap")}>
+                      <span style={css("font-weight:800;color:var(--maroon)")}>#{o.id}</span>
+                    </td>
+                    <td style={css("padding:14px 16px;border-bottom:1px solid var(--line);color:var(--muted);white-space:nowrap")}>
+                      {fmtDate(o.createdAt)}
+                    </td>
+                    <td style={css("padding:14px 16px;border-bottom:1px solid var(--line)")}>
+                      <StatusBadge label={STATUS_LABEL[o.status] ?? o.status} bg={tone.bg} color={tone.color} />
+                    </td>
+                    <td style={css("padding:14px 16px;border-bottom:1px solid var(--line);white-space:nowrap")}>
+                      <b>{formatPrice(o.priceCents)}</b> <span style={css("color:var(--muted)")}>for 1 item</span>
+                    </td>
+                    <td style={css("padding:14px 16px;border-bottom:1px solid var(--line);white-space:nowrap")}>
+                      <div style={css("display:flex;gap:14px")}>
+                        <LinkA label="View" />
+                        {delivered ? <LinkA label="Order again" /> : <LinkA label="Track" />}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
-    />
-  );
-}
-
-function StatusPill({ label, bg, color }: { label: string; bg: string; color: string }) {
-  return (
-    <span style={sx("font-size:12px;font-weight:800;padding:5px 12px;border-radius:20px;white-space:nowrap", { background: bg, color })}>
-      {label}
-    </span>
-  );
-}
-
-function PanelHead({ title, sub, children }: { title: string; sub: string; children?: React.ReactNode }) {
-  return (
-    <div style={css("display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:16px")}>
-      <div>
-        <h2 style={css("font-family:'Newsreader',serif;font-size:24px;font-weight:600;letter-spacing:-.3px")}>{title}</h2>
-        <p style={css("color:var(--muted);font-size:13.5px;margin-top:2px")}>{sub}</p>
-      </div>
-      {children}
     </div>
   );
 }
 
-function EmptyState({ title, text, cta, onCta }: { title: string; text: string; cta?: string; onCta?: () => void }) {
+/* ------------------------------------------------------------------ */
+/* Addresses                                                          */
+/* ------------------------------------------------------------------ */
+
+function AddressBlock({ addr }: { addr: AddressCard }) {
+  const empty = !addr.line1;
   return (
-    <div style={css("text-align:center;padding:60px 20px;background:var(--paper);border:1px solid var(--line);border-radius:14px")}>
-      <div style={css("width:52px;height:52px;margin:0 auto 12px;border-radius:50%;background:var(--putty);display:flex;align-items:center;justify-content:center")}>
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M4 9h16l-1-4.5H5L4 9Z" /><path d="M5 9v10.5h14V9" /></svg>
+    <div style={css("background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:18px")}>
+      <div style={css("display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px")}>
+        <div style={css("display:flex;align-items:center;gap:9px")}>
+          <span style={css("width:30px;height:30px;border-radius:9px;flex:0 0 auto;background:var(--tint);color:var(--maroon);display:flex;align-items:center;justify-content:center")}>
+            <Pin size={16} stroke="var(--maroon)" />
+          </span>
+          <span style={css("font-size:15px;font-weight:800")}>{addr.title}</span>
+        </div>
+        <LinkA label={empty ? `Add ${addr.kind} address` : "Edit"} />
       </div>
-      <div style={css("font-family:'Newsreader',serif;font-size:20px;color:var(--ink);margin-bottom:5px")}>{title}</div>
-      <div style={css("font-size:14px;color:var(--muted);max-width:360px;margin:0 auto")}>{text}</div>
-      {cta && (
-        <button onClick={onCta} style={css("margin-top:16px;background:var(--maroon);color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit")}>
-          {cta}
-        </button>
+      {empty ? (
+        <div style={css("font-size:14px;color:var(--muted)")}>You have not set up this type of address yet.</div>
+      ) : (
+        <address style={css("font-style:normal;font-size:14px;line-height:1.6;color:var(--ink)")}>
+          {addr.name && <div style={css("font-weight:600")}>{addr.name}</div>}
+          {addr.company && <div style={css("color:var(--muted)")}>{addr.company}</div>}
+          {addr.line1 && <div style={css("color:var(--muted)")}>{addr.line1}</div>}
+          {addr.line2 && <div style={css("color:var(--muted)")}>{addr.line2}</div>}
+          {addr.cityStateZip && <div style={css("color:var(--muted)")}>{addr.cityStateZip}</div>}
+          {addr.country && <div style={css("color:var(--muted)")}>{addr.country}</div>}
+          {addr.phone && <div style={css("color:var(--muted);margin-top:4px")}>{addr.phone}</div>}
+        </address>
       )}
     </div>
   );
 }
 
-function LinkButton({ label, onClick, tone = "blue" }: { label: string; onClick?: () => void; tone?: "blue" | "muted" | "red" }) {
-  const color = tone === "red" ? "var(--red)" : tone === "muted" ? "var(--muted)" : "var(--blueInk)";
+function AddressesPanel() {
+  const [addresses] = useState<AddressCard[]>(ADDRESSES);
   return (
-    <Hoverable as="span" onClick={onClick} styles={sx("font-size:12.5px;font-weight:700;cursor:pointer", { color })} hover="text-decoration:underline">
-      {label}
+    <div>
+      <PageHeading>Addresses</PageHeading>
+      <Notice>The following addresses will be used on the checkout page by default.</Notice>
+      <div style={css("display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px")}>
+        {addresses.map((a) => (
+          <AddressBlock key={a.kind} addr={a} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Payment methods                                                    */
+/* ------------------------------------------------------------------ */
+
+function PaymentMethodsPanel() {
+  const [cards, setCards] = useState<SavedCard[]>(SAVED_CARDS);
+  const makeDefault = (id: string) => setCards((prev) => prev.map((c) => ({ ...c, isDefault: c.id === id })));
+  const remove = (id: string) =>
+    setCards((prev) => {
+      const next = prev.filter((c) => c.id !== id);
+      if (next.length && !next.some((c) => c.isDefault)) next[0] = { ...next[0], isDefault: true };
+      return next;
+    });
+
+  return (
+    <div>
+      <div style={css("display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px")}>
+        <PageHeading>Payment methods</PageHeading>
+        <GhostButton><Plus size={15} />Add payment method</GhostButton>
+      </div>
+
+      {cards.length === 0 ? (
+        <EmptyState title="No saved payment methods" text="Add a card to reserve items with $1 and check out at delivery." cta="Add a card" />
+      ) : (
+        <div style={css("display:flex;flex-direction:column;gap:11px")}>
+          {cards.map((c) => {
+            const brand = CARD_BRAND_STYLE[c.brand];
+            return (
+              <div key={c.id} style={css("display:flex;align-items:center;gap:14px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:14px 15px")}>
+                <div style={sx("width:52px;height:34px;flex:0 0 auto;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:.02em", { background: brand.bg, color: brand.fg })}>
+                  {c.brand === "Mastercard" ? "MC" : c.brand === "Amex" ? "AMEX" : c.brand.toUpperCase()}
+                </div>
+                <div style={css("flex:1;min-width:0")}>
+                  <div style={css("display:flex;align-items:center;gap:9px;flex-wrap:wrap")}>
+                    <span style={css("font-size:14.5px;font-weight:700")}>{c.brand} •••• {c.last4}</span>
+                    {c.isDefault && (
+                      <span style={css("font-size:11px;font-weight:800;color:var(--green);background:var(--greenBg);padding:3px 9px;border-radius:20px")}>Default</span>
+                    )}
+                  </div>
+                  <div style={css("font-size:12.5px;color:var(--muted);margin-top:2px")}>{c.holder} · Expires {c.expiry}</div>
+                </div>
+                <div style={css("display:flex;align-items:center;gap:14px")}>
+                  {!c.isDefault && <LinkA label="Set default" onClick={() => makeDefault(c.id)} />}
+                  <LinkA label="Delete" tone="red" onClick={() => remove(c.id)} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Account details                                                    */
+/* ------------------------------------------------------------------ */
+
+const FIELD = "width:100%;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:11px 12px;font-size:14px;color:var(--ink);outline:none;font-family:inherit;box-sizing:border-box";
+const LABEL = "font-size:13px;font-weight:700;margin-bottom:6px;display:block;color:var(--ink)";
+
+function Field({ label, value, onChange, type = "text", hint, placeholder }: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  hint?: string;
+  placeholder?: string;
+}) {
+  return (
+    <div>
+      <label style={css(LABEL)}>{label}</label>
+      <input
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        style={css(FIELD)}
+      />
+      {hint && <div style={css("font-size:12px;color:var(--muted);margin-top:5px")}>{hint}</div>}
+    </div>
+  );
+}
+
+function AccountDetailsPanel() {
+  const [firstName, setFirstName] = useState(CUSTOMER.firstName);
+  const [lastName, setLastName] = useState(CUSTOMER.lastName);
+  const [displayName, setDisplayName] = useState(CUSTOMER.displayName);
+  const [email, setEmail] = useState(CUSTOMER.email);
+  const [pwCurrent, setPwCurrent] = useState("");
+  const [pw1, setPw1] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  const onSave = () => {
+    setSaved(true);
+    setPwCurrent("");
+    setPw1("");
+    setPw2("");
+    window.setTimeout(() => setSaved(false), 2600);
+  };
+
+  return (
+    <div>
+      <PageHeading>Account details</PageHeading>
+      {saved && (
+        <div style={css("background:var(--greenBg);color:var(--green);border-radius:10px;padding:12px 15px;font-size:14px;font-weight:700;margin-bottom:18px")}>
+          Account details changed successfully.
+        </div>
+      )}
+      <div style={css("background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:22px;box-shadow:0 3px 10px rgba(60,10,35,.05)")}>
+        <div style={css("display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px")}>
+          <Field label="First name *" value={firstName} onChange={setFirstName} />
+          <Field label="Last name *" value={lastName} onChange={setLastName} />
+        </div>
+        <div style={css("margin-top:16px")}>
+          <Field
+            label="Display name *"
+            value={displayName}
+            onChange={setDisplayName}
+            hint="This will be how your name will be displayed in the account section and in reviews."
+          />
+        </div>
+        <div style={css("margin-top:16px")}>
+          <Field label="Email address *" value={email} onChange={setEmail} type="email" />
+        </div>
+
+        <fieldset style={css("border:1px solid var(--line);border-radius:12px;padding:18px;margin-top:22px")}>
+          <legend style={css("font-size:14px;font-weight:800;padding:0 8px")}>Password change</legend>
+          <div style={css("display:flex;flex-direction:column;gap:15px")}>
+            <Field label="Current password (leave blank to leave unchanged)" value={pwCurrent} onChange={setPwCurrent} type="password" placeholder="••••••••" />
+            <Field label="New password (leave blank to leave unchanged)" value={pw1} onChange={setPw1} type="password" placeholder="••••••••" />
+            <Field label="Confirm new password" value={pw2} onChange={setPw2} type="password" placeholder="••••••••" />
+          </div>
+        </fieldset>
+
+        <div style={css("margin-top:22px")}>
+          <PrimaryButton onClick={onSave}>Save changes</PrimaryButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* My Listings (seller)                                               */
+/* ------------------------------------------------------------------ */
+
+interface ApiListing {
+  id?: number;
+  sku?: string;
+  title?: string;
+  priceCents?: number;
+  images?: unknown;
+  permalink?: string;
+}
+
+function toListingRows(items: ApiListing[]): ListingRow[] {
+  return items
+    .filter((p): p is ApiListing & { id: number } => typeof p.id === "number")
+    .map((p) => ({
+      id: p.id,
+      sku: typeof p.sku === "string" && p.sku ? p.sku : `CP-${p.id}`,
+      title: typeof p.title === "string" ? p.title : "Untitled listing",
+      image: Array.isArray(p.images) && typeof p.images[0] === "string" ? (p.images[0] as string) : null,
+      priceCents: typeof p.priceCents === "number" ? p.priceCents : 0,
+      createdAt: "",
+      status: "publish",
+      permalink: typeof p.permalink === "string" ? p.permalink : "#",
+    }));
+}
+
+function MyListingsPanel({ onBrowse }: { onBrowse?: () => void }) {
+  const [rows, setRows] = useState<ListingRow[] | null>(null);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch("/api/products?per_page=6", { signal: ctrl.signal });
+        const data: unknown = await res.json();
+        const items =
+          data && typeof data === "object" && Array.isArray((data as { items?: unknown }).items)
+            ? ((data as { items: ApiListing[] }).items)
+            : [];
+        const mapped = toListingRows(items);
+        // Fall back to representative fixtures when live inventory is unavailable.
+        setRows(mapped.length ? mapped : LISTINGS_FALLBACK);
+      } catch (err) {
+        if ((err as { name?: string })?.name === "AbortError") return;
+        setRows(LISTINGS_FALLBACK);
+      }
+    })();
+    return () => ctrl.abort();
+  }, []);
+
+  const remove = (id: number) => setRows((prev) => (prev ? prev.filter((r) => r.id !== id) : prev));
+
+  return (
+    <div>
+      <div style={css("display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px")}>
+        <PageHeading>My Listings</PageHeading>
+        <GhostButton onClick={onBrowse}><Plus size={15} />New listing</GhostButton>
+      </div>
+
+      {rows === null ? (
+        <Loading label="Loading your listings…" />
+      ) : rows.length === 0 ? (
+        <EmptyState title="No listings found" text="List something you no longer need — we handle pickup, delivery, and payment." cta="Browse the marketplace" onCta={onBrowse} />
+      ) : (
+        <div style={css("overflow-x:auto;background:var(--paper);border:1px solid var(--line);border-radius:14px")}>
+          <table style={css("width:100%;border-collapse:collapse;font-size:14px;min-width:660px")}>
+            <thead>
+              <tr>
+                {["No.", "SKU", "Item", "Listing Date", "Amount", "Status", "Action"].map((h) => (
+                  <th key={h} style={css("text-align:left;padding:13px 15px;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);white-space:nowrap")}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => {
+                const st = LISTING_STATUS_STYLE[r.status];
+                return (
+                  <tr key={r.id}>
+                    <td style={css("padding:13px 15px;border-bottom:1px solid var(--line);color:var(--muted)")}>{i + 1}</td>
+                    <td style={css("padding:13px 15px;border-bottom:1px solid var(--line);color:var(--muted);white-space:nowrap")}>{r.sku}</td>
+                    <td style={css("padding:13px 15px;border-bottom:1px solid var(--line)")}>
+                      <div style={css("display:flex;align-items:center;gap:11px;min-width:220px")}>
+                        <Thumb src={r.image} />
+                        <span style={css("font-weight:600;line-height:1.35")}>{r.title}</span>
+                      </div>
+                    </td>
+                    <td style={css("padding:13px 15px;border-bottom:1px solid var(--line);color:var(--muted);white-space:nowrap")}>
+                      {r.createdAt ? fmtDate(r.createdAt) : "—"}
+                    </td>
+                    <td style={css("padding:13px 15px;border-bottom:1px solid var(--line);white-space:nowrap")}><b>{formatPrice(r.priceCents)}</b></td>
+                    <td style={css("padding:13px 15px;border-bottom:1px solid var(--line)")}>
+                      <StatusBadge label={st.label} bg={st.bg} color={st.color} />
+                    </td>
+                    <td style={css("padding:13px 15px;border-bottom:1px solid var(--line);white-space:nowrap")}>
+                      <div style={css("display:flex;align-items:center;gap:12px")}>
+                        <IconAction title="View" tone="var(--blueInk)">
+                          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />
+                        </IconAction>
+                        <IconAction title="Edit" tone="var(--gold)">
+                          <path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                        </IconAction>
+                        <IconAction title="Delete" tone="var(--red)" onClick={() => remove(r.id)}>
+                          <path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M6 6l1 14h10l1-14" />
+                        </IconAction>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function IconAction({ title, tone, onClick, children }: { title: string; tone: string; onClick?: () => void; children: React.ReactNode }) {
+  return (
+    <Hoverable
+      as="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      styles="width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--paper);border-radius:8px;cursor:pointer;padding:0"
+      hover="background:var(--putty)"
+    >
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={tone} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        {children}
+      </svg>
     </Hoverable>
   );
 }
 
-/* =============================== Purchases =============================== */
-function purchaseTone(s: PurchaseStatus): { bg: string; color: string } {
-  switch (s) {
-    case "Delivered":
-      return { bg: "var(--greenBg)", color: "var(--green)" };
-    case "In transit":
-      return { bg: "var(--blueBg)", color: "var(--blueInk)" };
-    case "Scheduled":
-      return { bg: "var(--yellowBg)", color: "var(--gold)" };
-    default:
-      return { bg: "var(--putty)", color: "var(--muted)" };
-  }
-}
+/* ------------------------------------------------------------------ */
+/* Counter Offers                                                     */
+/* ------------------------------------------------------------------ */
 
-function PurchasesPanel() {
-  const items: Purchase[] = PURCHASES;
-  const delivered = items.filter((p) => p.status === "Delivered").length;
-  const active = items.length - delivered;
+const OFFER_TONE: Record<OfferStatus, { label: string; bg: string; color: string }> = {
+  pending: { label: "Pending", bg: "#F7EDCE", color: "var(--gold)" },
+  countered: { label: "Countered", bg: "var(--blueBg)", color: "var(--blueInk)" },
+  accepted: { label: "Accepted", bg: "var(--greenBg)", color: "var(--green)" },
+  declined: { label: "Rejected", bg: "#F5EAE7", color: "var(--red)" },
+};
 
-  if (items.length === 0) {
-    return <EmptyState title="No purchases yet" text="Items you buy on Commonplace show up here — with live delivery tracking." cta="Start browsing" />;
-  }
-  return (
-    <div>
-      <PanelHead title="Your purchases" sub="Every order, with live delivery status and receipts." />
-      <div style={css("display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px")}>
-        {([["Total orders", String(items.length), "var(--ink)"], ["Arriving soon", String(active), "var(--blueInk)"], ["Delivered", String(delivered), "var(--green)"]] as const).map(([l, n, c]) => (
-          <div key={l} style={css("background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:14px 16px")}>
-            <div style={sx("font-size:24px;font-weight:800;letter-spacing:-.5px", { color: c })}>{n}</div>
-            <div style={css("font-size:12.5px;color:var(--muted)")}>{l}</div>
-          </div>
-        ))}
-      </div>
-      <div style={css("display:flex;flex-direction:column;gap:11px")}>
-        {items.map((p) => {
-          const tone = purchaseTone(p.status);
-          return (
-            <div key={p.id} style={css("display:flex;align-items:center;gap:14px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:13px 15px")}>
-              <Thumb tint={p.tint} />
-              <div style={css("flex:1;min-width:0")}>
-                <div style={css("font-size:14.5px;font-weight:600;line-height:1.3;text-wrap:pretty")}>{p.title}</div>
-                <div style={css("font-size:12.5px;color:var(--muted);margin-top:3px")}>
-                  Order {p.orderNo} · {p.date} · <b style={css("color:var(--ink)")}>{formatPrice(p.priceCents)}</b>
-                </div>
-                {p.eta && (
-                  <div style={css("display:flex;align-items:center;gap:5px;font-size:12px;color:var(--blueInk);font-weight:600;margin-top:4px")}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="1" y="6" width="14" height="10" rx="1.5" /><path d="M15 9h4l3 3.5V16h-7z" /><circle cx="6" cy="17.5" r="1.8" /><circle cx="18" cy="17.5" r="1.8" /></svg>
-                    {p.eta}
-                  </div>
-                )}
-              </div>
-              <div style={css("display:flex;flex-direction:column;align-items:flex-end;gap:8px")}>
-                <StatusPill label={p.status} bg={tone.bg} color={tone.color} />
-                {p.status === "Delivered" ? (
-                  <LinkButton label={p.canReview ? "Leave a review" : "View receipt"} />
-                ) : (
-                  <LinkButton label="Track order" />
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+function CounterOffersPanel({ onBrowse }: { onBrowse?: () => void }) {
+  const [offers, setOffers] = useState<OfferDTO[] | null>(null);
+  // Local buyer decisions (no buyer-side endpoint yet) keep the UI responsive.
+  const [overrides, setOverrides] = useState<Record<string, OfferStatus>>({});
 
-/* =============================== Offers =============================== */
-function offerTone(s: OfferStatus): { bg: string; color: string } {
-  switch (s) {
-    case "Accepted":
-      return { bg: "var(--greenBg)", color: "var(--green)" };
-    case "Countered":
-      return { bg: "var(--yellowBg)", color: "var(--gold)" };
-    case "Pending":
-      return { bg: "var(--blueBg)", color: "var(--blueInk)" };
-    default:
-      return { bg: "#F1E7E4", color: "var(--red)" };
-  }
-}
+  useEffect(() => {
+    const ctrl = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch("/api/offers?role=buyer", { signal: ctrl.signal });
+        const data: unknown = await res.json();
+        const list =
+          data && typeof data === "object" && Array.isArray((data as { offers?: unknown }).offers)
+            ? ((data as { offers: OfferDTO[] }).offers)
+            : [];
+        setOffers(list);
+      } catch (err) {
+        if ((err as { name?: string })?.name === "AbortError") return;
+        setOffers([]);
+      }
+    })();
+    return () => ctrl.abort();
+  }, []);
 
-function OffersPanel() {
-  const items: Offer[] = OFFERS;
-  const active = items.filter((o) => o.status === "Countered" || o.status === "Pending").length;
-  const accepted = items.filter((o) => o.status === "Accepted").length;
-
-  if (items.length === 0) {
-    return <EmptyState title="No active offers" text="When you make an offer, we negotiate on your behalf and track every counter here." cta="Browse items" />;
-  }
-  return (
-    <div>
-      <PanelHead title="Your offers" sub="We negotiate up from your price — you only act on counters and acceptances." />
-      <div style={css("display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px")}>
-        {([["Open offers", String(active), "var(--ink)"], ["Accepted", String(accepted), "var(--green)"], ["Total placed", String(items.length), "var(--ink)"]] as const).map(([l, n, c]) => (
-          <div key={l} style={css("background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:14px 16px")}>
-            <div style={sx("font-size:24px;font-weight:800;letter-spacing:-.5px", { color: c })}>{n}</div>
-            <div style={css("font-size:12.5px;color:var(--muted)")}>{l}</div>
-          </div>
-        ))}
-      </div>
-      <div style={css("display:flex;flex-direction:column;gap:11px")}>
-        {items.map((o) => {
-          const tone = offerTone(o.status);
-          return (
-            <div key={o.id} style={css("display:flex;align-items:center;gap:14px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:13px 15px")}>
-              <Thumb tint={o.tint} />
-              <div style={css("flex:1;min-width:0")}>
-                <div style={css("font-size:14.5px;font-weight:600;line-height:1.3;text-wrap:pretty")}>{o.title}</div>
-                <div style={css("font-size:12.5px;color:var(--muted);margin-top:3px")}>
-                  Your offer <b style={css("color:var(--ink)")}>{formatPrice(o.offerCents)}</b> · list {formatPrice(o.listCents)} · {o.when}
-                </div>
-              </div>
-              <div style={css("display:flex;flex-direction:column;align-items:flex-end;gap:8px")}>
-                <StatusPill label={o.status} bg={tone.bg} color={tone.color} />
-                {o.action && <LinkButton label={o.action} />}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/* =============================== Saved / Wishlist =============================== */
-function SavedPanel() {
-  const [items, setItems] = useState<SavedItem[]>(SAVED_ITEMS);
-  const remove = (id: string) => setItems((prev) => prev.filter((x) => x.id !== id));
-
-  if (items.length === 0) {
-    return <EmptyState title="Nothing saved yet" text="Tap the heart on any listing to save it here and get alerted on price drops." cta="Find something you love" />;
-  }
-  return (
-    <div>
-      <PanelHead title="Saved items" sub="Your wishlist — we'll ping you when any of these drop in price." />
-      <div style={css("display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px")}>
-        {items.map((it) => (
-          <div key={it.id} style={css("position:relative;background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 3px 10px rgba(60,10,35,.05)")}>
-            <div style={sx("position:relative;aspect-ratio:4/3", { background: `repeating-linear-gradient(135deg,${it.tint[0]} 0 15px,${it.tint[1]} 15px 30px)` })}>
-              <div style={css("position:absolute;top:9px;left:9px;background:rgba(255,255,255,.95);color:var(--ink);padding:3px 8px;border-radius:20px;font-size:10px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.1)")}>{it.condition}</div>
-              {it.savingsPct ? (
-                <div style={css("position:absolute;top:9px;right:9px;background:var(--green);color:#fff;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:800")}>Save {it.savingsPct}%</div>
-              ) : null}
-              <Hoverable
-                as="button"
-                onClick={() => remove(it.id)}
-                title="Remove from saved"
-                styles="position:absolute;bottom:9px;right:9px;width:32px;height:32px;border-radius:50%;border:none;background:rgba(255,255,255,.95);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.14)"
-                hover="filter:brightness(.95)"
-              >
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="var(--maroon)" stroke="var(--maroon)" strokeWidth={2}><path d="M12 21s-7-4.35-9.5-8.5C1 9 2.5 5.5 6 5.5c2 0 3.2 1.2 4 2.3.8-1.1 2-2.3 4-2.3 3.5 0 5 3.5 3.5 7-2.5 4.15-9.5 8.5-9.5 8.5Z" /></svg>
-              </Hoverable>
-            </div>
-            <div style={css("padding:10px 11px 12px")}>
-              <div style={css("font-family:'Newsreader',serif;font-size:13.5px;font-weight:500;line-height:1.28;height:35px;overflow:hidden;text-wrap:pretty")}>{it.title}</div>
-              <div style={css("display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--muted);margin-top:6px")}>
-                <Pin size={12} />{it.location}
-              </div>
-              <div style={css("display:flex;align-items:baseline;gap:7px;margin-top:5px")}>
-                <span style={css("font-size:15px;font-weight:800;letter-spacing:-.3px")}>{formatPrice(it.priceCents)}</span>
-                {it.retailCents ? <span style={css("font-size:11px;color:var(--muted);text-decoration:line-through")}>{formatPrice(it.retailCents)}</span> : null}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* =============================== Payment methods =============================== */
-function PaymentsPanel() {
-  const [methods, setMethods] = useState<PaymentMethod[]>(PAYMENT_METHODS);
-  const makeDefault = (id: string) => setMethods((prev) => prev.map((m) => ({ ...m, isDefault: m.id === id })));
-  const remove = (id: string) =>
-    setMethods((prev) => {
-      const next = prev.filter((m) => m.id !== id);
-      // Never leave the list without a default.
-      if (next.length && !next.some((m) => m.isDefault)) next[0] = { ...next[0], isDefault: true };
-      return next;
-    });
+  const setStatus = (id: string, status: OfferStatus) => setOverrides((p) => ({ ...p, [id]: status }));
 
   return (
     <div>
-      <PanelHead title="Payment methods" sub="Used for your $1 reservation and the balance charged at delivery.">
-        <Hoverable
-          as="button"
-          styles="display:flex;align-items:center;gap:7px;background:var(--blueInk);color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit"
-          hover="filter:brightness(1.06)"
-        >
-          <Plus size={16} />Add card
-        </Hoverable>
-      </PanelHead>
-
-      {methods.length === 0 ? (
-        <EmptyState title="No payment methods" text="Add a card to reserve items with $1 and check out at delivery." cta="Add a card" />
+      <PageHeading>Counter Offers</PageHeading>
+      {offers === null ? (
+        <Loading label="Loading your counter offers…" />
+      ) : offers.length === 0 ? (
+        <EmptyState
+          title="You have no counter offers at this time"
+          text="Make an offer on a listing and any seller counters will appear here — accept or decline in one tap."
+          cta="Browse products"
+          onCta={onBrowse}
+        />
       ) : (
-        <div style={css("display:flex;flex-direction:column;gap:11px")}>
-          {methods.map((m) => {
-            const brand = BRAND_STYLE[m.brand];
+        <div style={css("display:flex;flex-direction:column;gap:12px")}>
+          <div style={css("font-size:13px;color:var(--muted)")}>
+            Showing {offers.length} of {offers.length} counter offer{offers.length === 1 ? "" : "s"}
+          </div>
+          {offers.map((o) => {
+            const status = overrides[o.id] ?? o.status;
+            const tone = OFFER_TONE[status] ?? OFFER_TONE.pending;
+            const priceCents = o.counterCents ?? o.amountCents;
+            const canRespond = status === "countered" || status === "pending";
             return (
-              <div key={m.id} style={css("display:flex;align-items:center;gap:14px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:14px 15px")}>
-                <div style={sx("width:52px;height:34px;flex:0 0 auto;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:.02em", { background: brand.bg, color: brand.fg })}>
-                  {m.brand === "Mastercard" ? "MC" : m.brand === "Amex" ? "AMEX" : m.brand.toUpperCase()}
-                </div>
-                <div style={css("flex:1;min-width:0")}>
-                  <div style={css("display:flex;align-items:center;gap:9px;flex-wrap:wrap")}>
-                    <span style={css("font-size:14.5px;font-weight:700")}>{m.brand} •••• {m.last4}</span>
-                    {m.isDefault && (
-                      <span style={css("font-size:11px;font-weight:800;color:var(--green);background:var(--greenBg);padding:3px 9px;border-radius:20px")}>Default</span>
-                    )}
+              <div key={o.id} style={css("display:flex;gap:14px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:15px;flex-wrap:wrap;align-items:flex-start")}>
+                <Thumb src={o.listingImage} size={62} />
+                <div style={css("flex:1;min-width:200px")}>
+                  <div style={css("display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px")}>
+                    <span style={css("font-size:15px;font-weight:700;line-height:1.3")}>{o.listingTitle}</span>
+                    <StatusBadge label={tone.label} bg={tone.bg} color={tone.color} />
                   </div>
-                  <div style={css("font-size:12.5px;color:var(--muted);margin-top:2px")}>{m.holder} · Expires {m.expiry}</div>
-                </div>
-                <div style={css("display:flex;align-items:center;gap:14px")}>
-                  {!m.isDefault && <LinkButton label="Set default" onClick={() => makeDefault(m.id)} />}
-                  <LinkButton label="Remove" tone="red" onClick={() => remove(m.id)} />
+                  <div style={css("font-size:13.5px;color:var(--ink)")}>
+                    Counter Offer Price: <b>{formatPrice(priceCents)}</b>
+                    <span style={css("color:var(--muted)")}> · list {formatPrice(o.listPriceCents)}</span>
+                  </div>
+                  <div style={css("font-size:12.5px;color:var(--muted);margin-top:3px")}>Date: {fmtDate(o.createdAt)}</div>
+
+                  <div style={css("display:flex;gap:10px;margin-top:12px;flex-wrap:wrap")}>
+                    {status === "accepted" ? (
+                      <>
+                        <PrimaryButton onClick={onBrowse}>Add to Cart</PrimaryButton>
+                        <span style={css("font-size:12.5px;color:var(--muted);align-self:center")}>Added at your counter-offer price.</span>
+                      </>
+                    ) : status === "declined" ? (
+                      <span style={css("font-size:13px;color:var(--muted)")}>You declined this counter offer.</span>
+                    ) : canRespond ? (
+                      <>
+                        <PrimaryButton onClick={() => setStatus(o.id, "accepted")}>Accept Counter Offer</PrimaryButton>
+                        <GhostButton onClick={() => setStatus(o.id, "declined")}>Reject Counter Offer</GhostButton>
+                      </>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             );
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-/* =============================== Addresses =============================== */
-function AddressesPanel() {
-  const [addresses, setAddresses] = useState<Address[]>(ADDRESSES);
-  const makeDefault = (id: string) => setAddresses((prev) => prev.map((a) => ({ ...a, isDefault: a.id === id })));
-  const remove = (id: string) =>
-    setAddresses((prev) => {
-      const next = prev.filter((a) => a.id !== id);
-      if (next.length && !next.some((a) => a.isDefault)) next[0] = { ...next[0], isDefault: true };
-      return next;
-    });
-
-  return (
-    <div>
-      <PanelHead title="Delivery addresses" sub="Where we bring and set up your items.">
-        <Hoverable
-          as="button"
-          styles="display:flex;align-items:center;gap:7px;background:var(--blueInk);color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit"
-          hover="filter:brightness(1.06)"
-        >
-          <Plus size={16} />Add address
-        </Hoverable>
-      </PanelHead>
-
-      {addresses.length === 0 ? (
-        <EmptyState title="No addresses saved" text="Add a delivery address so we know where to bring your orders." cta="Add an address" />
-      ) : (
-        <div style={css("display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px")}>
-          {addresses.map((a) => (
-            <div key={a.id} style={css("background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px")}>
-              <div style={css("display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px")}>
-                <div style={css("display:flex;align-items:center;gap:8px")}>
-                  <span style={css("width:28px;height:28px;border-radius:8px;flex:0 0 auto;background:var(--tint);color:var(--maroon);display:flex;align-items:center;justify-content:center")}><Pin size={15} stroke="var(--maroon)" /></span>
-                  <span style={css("font-size:14px;font-weight:800")}>{a.label}</span>
-                </div>
-                {a.isDefault && (
-                  <span style={css("font-size:11px;font-weight:800;color:var(--green);background:var(--greenBg);padding:3px 9px;border-radius:20px")}>Default</span>
-                )}
-              </div>
-              <div style={css("font-size:13.5px;line-height:1.5;color:var(--ink)")}>
-                <div style={css("font-weight:600")}>{a.name}</div>
-                <div style={css("color:var(--muted)")}>{a.line1}</div>
-                {a.line2 && <div style={css("color:var(--muted)")}>{a.line2}</div>}
-                <div style={css("color:var(--muted)")}>{a.cityStateZip}</div>
-              </div>
-              <div style={css("display:flex;align-items:center;gap:16px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)")}>
-                <LinkButton label="Edit" />
-                {!a.isDefault && <LinkButton label="Set default" onClick={() => makeDefault(a.id)} />}
-                {!a.isDefault && <LinkButton label="Remove" tone="red" onClick={() => remove(a.id)} />}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* =============================== Settings =============================== */
-function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
-  return (
-    <button
-      onClick={onToggle}
-      aria-pressed={on}
-      style={sx(
-        "position:relative;width:44px;height:26px;flex:0 0 auto;border:none;border-radius:20px;cursor:pointer;transition:background .18s",
-        { background: on ? "var(--green)" : "#d8cfc2" },
-      )}
-    >
-      <span
-        style={sx(
-          "position:absolute;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .18s",
-          { left: on ? "21px" : "3px" },
-        )}
-      />
-    </button>
-  );
-}
-
-function SettingsPanel() {
-  const [profile, setProfile] = useState({ name: PROFILE.name, email: PROFILE.email, phone: PROFILE.phone });
-  const [notifs, setNotifs] = useState<NotificationSetting[]>(NOTIFICATION_SETTINGS);
-  const toggle = (key: string) => setNotifs((prev) => prev.map((n) => (n.key === key ? { ...n, enabled: !n.enabled } : n)));
-
-  const fieldStyle = "width:100%;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:11px 12px;font-size:14px;color:var(--ink);outline:none;font-family:inherit";
-
-  return (
-    <div style={css("max-width:720px")}>
-      <PanelHead title="Settings" sub="Manage your details, notifications, and account." />
-
-      {/* Personal details */}
-      <div style={css("background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px")}>
-        <div style={css("font-size:16px;font-weight:800;margin-bottom:14px")}>Personal details</div>
-        <div style={css("display:flex;flex-direction:column;gap:13px")}>
-          <div>
-            <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>Full name</div>
-            <input value={profile.name} onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))} style={css(fieldStyle)} />
-          </div>
-          <div style={css("display:flex;gap:12px;flex-wrap:wrap")}>
-            <div style={css("flex:1;min-width:200px")}>
-              <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>Email</div>
-              <input value={profile.email} type="email" onChange={(e) => setProfile((p) => ({ ...p, email: e.target.value }))} style={css(fieldStyle)} />
-            </div>
-            <div style={css("flex:1;min-width:200px")}>
-              <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>Phone</div>
-              <input value={profile.phone} onChange={(e) => setProfile((p) => ({ ...p, phone: e.target.value }))} style={css(fieldStyle)} />
-            </div>
-          </div>
-          <div style={css("display:flex;justify-content:flex-end")}>
-            <button style={css("background:var(--maroon);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit")}>Save changes</button>
-          </div>
-        </div>
-      </div>
-
-      {/* Notifications */}
-      <div style={css("background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px")}>
-        <div style={css("font-size:16px;font-weight:800;margin-bottom:6px")}>Notifications</div>
-        <div style={css("display:flex;flex-direction:column")}>
-          {notifs.map((n, i) => (
-            <div key={n.key} style={sx("display:flex;align-items:center;gap:14px;padding:13px 0", i > 0 ? "border-top:1px solid var(--line)" : "")}>
-              <div style={css("flex:1;min-width:0")}>
-                <div style={css("font-size:14px;font-weight:700")}>{n.label}</div>
-                <div style={css("font-size:12.5px;color:var(--muted);margin-top:1px")}>{n.desc}</div>
-              </div>
-              <Toggle on={n.enabled} onToggle={() => toggle(n.key)} />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Account actions */}
-      <div style={css("background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:18px")}>
-        <div style={css("font-size:16px;font-weight:800;margin-bottom:12px")}>Account</div>
-        <div style={css("display:flex;gap:10px;flex-wrap:wrap")}>
-          <button style={css("border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:10px;padding:10px 18px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit")}>Sign out</button>
-          <Hoverable
-            as="button"
-            styles="display:inline-flex;align-items:center;gap:7px;border:1px solid var(--red);background:var(--paper);color:var(--red);border-radius:10px;padding:10px 18px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit"
-            hover="background:#F1E7E4"
-          >
-            <Close size={14} stroke="var(--red)" />Delete account
-          </Hoverable>
-        </div>
-      </div>
     </div>
   );
 }
