@@ -57,7 +57,6 @@ export default function OfferModal({
   onSubmitted,
 }: OfferModalProps) {
   const [amountStr, setAmountStr] = useState("");
-  const [message, setMessage] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [errMsg, setErrMsg] = useState<string>("");
 
@@ -65,7 +64,6 @@ export default function OfferModal({
   useEffect(() => {
     if (open) {
       setAmountStr("");
-      setMessage("");
       setPhase("idle");
       setErrMsg("");
     }
@@ -98,7 +96,6 @@ export default function OfferModal({
           buyerState: buyerState ?? listing.location ?? null,
           amountCents,
           listPriceCents,
-          message: message.trim() || null,
         }),
       });
       const data = (await res.json()) as {
@@ -121,7 +118,7 @@ export default function OfferModal({
       setPhase("error");
       setErrMsg("Network hiccup — please try again.");
     }
-  }, [amountCents, listing, listPriceCents, message, buyerName, buyerState, onSubmitted]);
+  }, [amountCents, listing, listPriceCents, buyerName, buyerState, onSubmitted]);
 
   if (!open) return null;
 
@@ -238,20 +235,6 @@ export default function OfferModal({
                 )}
               </div>
 
-              {/* Optional message */}
-              <div style={css("margin-bottom:16px")}>
-                <div style={LABEL}>Message to seller (optional)</div>
-                <textarea
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  rows={3}
-                  maxLength={2000}
-                  placeholder="Add a note — e.g. flexible on pickup timing."
-                  style={css(
-                    "width:100%;resize:vertical;border:1.5px solid var(--line);border-radius:10px;padding:11px 13px;background:var(--paper);font-size:14px;color:var(--ink);font-family:inherit;outline:none;line-height:1.45",
-                  )}
-                />
-              </div>
 
               {phase === "error" && (
                 <div

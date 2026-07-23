@@ -770,7 +770,9 @@ function CreateModal({ onClose }: { onClose: () => void }) {
           </div>
 
           {/* Category-specific questions */}
-          {spec.questions.map((f) => renderField(f))}
+          {spec.questions
+            .filter((f) => !f.showWhen || (Array.isArray(answers[f.showWhen.field]) && (answers[f.showWhen.field] as string[]).includes(f.showWhen.includes)))
+            .map((f) => renderField(f))}
 
           {/* Price + condition */}
           <div style={css("display:flex;gap:12px")}>

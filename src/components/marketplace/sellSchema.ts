@@ -25,6 +25,8 @@ export interface Field {
   placeholder?: string;
   help?: string;
   required?: boolean;
+  /** Only show this field when another field's (chips) answer includes a value. */
+  showWhen?: { field: string; includes: string };
 }
 
 export interface SellSpec {
@@ -80,7 +82,7 @@ export const KIND_SPECS: Record<string, SellSpec> = {
         type: "chips",
         options: ["Shoes", "Mat", "Weights", "Heart rate monitor", "Fan", "Laptop tray", "Pedal cages", "Seat cushion", "Sweat guard"],
       },
-      { key: "shoes_size", label: "Shoe Size", type: "radio", options: numberRange(36, 47), help: "If shoes are included" },
+      { key: "shoes_size", label: "Shoe Size", type: "radio", options: numberRange(36, 47), showWhen: { field: "accessories", includes: "Shoes" } },
       {
         key: "damage",
         label: "Issues",
