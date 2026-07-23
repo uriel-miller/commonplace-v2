@@ -112,6 +112,31 @@ const GENERIC_ACC: Addon[] = [
   A("acc-priority-setup", "Priority Setup", "Front-of-line white-glove assembly and placement.", 5900),
 ];
 
+// Keyword fallback (order matters: more specific first) — matches real
+// WooCommerce category slugs/names that don't line up with our exact keys.
+const KEYWORD_ACC: Array<[RegExp, Addon[]]> = [
+  [/tread|elliptical|nordic|proform/, TREAD_ACC],
+  [/row|hydrow/, ROW_ACC],
+  [/swim.?spa/, HOTTUB_ACC],
+  [/hot.?tub|jacuzzi|hot.?spring|\bspa\b/, HOTTUB_ACC],
+  [/infrared|sauna/, SAUNA_ACC],
+  [/plunge|cold|float.?pod/, PLUNGE_ACC],
+  [/massage/, MASSAGE_ACC],
+  [/golf/, GOLF_ACC],
+  [/\batv\b|quad|four.?wheeler|\brv\b|motorhome|camper/, GOLF_ACC],
+  [/tonal|home.?gym|functional|smith|reformer|\bgym\b|rack|trainer/, GYM_ACC],
+  [/peloton|bike|spin|cycl|indoor/, BIKE_ACC],
+];
+
+/** Resolve accessories for one category token (slug and/or name). */
+function accForToken(token: string): Addon[] | null {
+  const exact = BY_SLUG[token];
+  if (exact) return exact;
+  const s = token.toLowerCase();
+  for (const [re, list] of KEYWORD_ACC) if (re.test(s)) return list;
+  return null;
+}
+
 /**
  * Return the add-ons to offer for a set of cart category slugs: every warranty
  * tier, plus the union of accessories for those categories (deduped by key).
@@ -123,7 +148,7 @@ export function addonsForCategories(slugs: Array<string | null | undefined>): Ad
     const accessories: Addon[] = [];
     let matched = false;
     for (const slug of slugs) {
-      const list = slug ? BY_SLUG[slug] : undefined;
+      const list = slug ? accForToken(String(slug)) : null;
       if (!list) continue;
       matched = true;
       for (const a of list) {

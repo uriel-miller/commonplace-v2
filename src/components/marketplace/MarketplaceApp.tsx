@@ -403,7 +403,7 @@ export function MarketplaceApp() {
       {videoId && <VideoLightbox id={videoId} onClose={() => setVideoId(null)} />}
       <ConciergeChat open={chatOpen} onToggle={() => setChatOpen((v) => !v)} />
       <CartExitPopup enabled={cart.count > 0} onClose={() => {}} />
-      <AddonPopup open={addonOpen} categorySlugs={cart.items.filter((it) => !isAddonListing(it.listing)).map((it) => it.listing.categorySlug)} onClose={() => setAddonOpen(false)} />
+      <AddonPopup open={addonOpen} categorySlugs={cart.items.filter((it) => !isAddonListing(it.listing)).map((it) => `${it.listing.categorySlug ?? ""} ${it.listing.categoryName ?? ""}`)} onClose={() => setAddonOpen(false)} />
     </div>
   );
 }

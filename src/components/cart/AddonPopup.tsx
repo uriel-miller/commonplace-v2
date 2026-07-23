@@ -66,7 +66,7 @@ export function AddonPopup({
 
   return (
     <div role="presentation" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      style={css("position:fixed;inset:0;z-index:400;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(25,12,18,.55);animation:cmpAddonFade .18s ease-out")}>
+      style={css("position:fixed;inset:0;z-index:400;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(25,12,18,.72);animation:cmpAddonFade .18s ease-out")}>
       <style>{"@keyframes cmpAddonFade{from{opacity:0}to{opacity:1}}@keyframes cmpAddonScale{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}"}</style>
       <div role="dialog" aria-modal="true" aria-label="Add protection and accessories"
         style={css("position:relative;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;background:var(--paper);border-radius:18px;box-shadow:0 30px 80px rgba(0,0,0,.35);animation:cmpAddonScale .2s cubic-bezier(.16,1,.3,1)")}>
