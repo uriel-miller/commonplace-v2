@@ -20,6 +20,9 @@ import { CartPage } from "@/components/cart/CartPage";
 import { SellPage } from "@/components/sell/SellPage";
 import { AddonPopup } from "@/components/cart/AddonPopup";
 import { isAddonListing } from "@/lib/addons";
+import { Footer } from "@/components/marketplace/Footer";
+import { RequestItemModal } from "@/components/marketplace/RequestItemModal";
+import { NotifyMePopup } from "@/components/marketplace/NotifyMePopup";
 import { AccountPage } from "@/components/pages/account/AccountPage";
 import { SearchPage } from "@/components/pages/search/SearchPage";
 import { resolveInfoPage } from "@/components/pages/info";
@@ -64,6 +67,12 @@ export function MarketplaceApp() {
   const [cartOpen, setCartOpen] = useState(false);
   const [addonOpen, setAddonOpen] = useState(false);
   const addonShown = useRef(false);
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [requestTitle, setRequestTitle] = useState("");
+  const [notifyOpen, setNotifyOpen] = useState(false);
+  const [notifyTitle, setNotifyTitle] = useState("");
+  function openRequest(title?: string) { setRequestTitle(title ?? ""); setRequestOpen(true); }
+  function openNotify(title?: string) { setNotifyTitle(title ?? ""); setNotifyOpen(true); }
   const cart = useCart();
   const prevCartCount = useRef(cart.count);
   const cartBaselineSet = useRef(false);
@@ -382,15 +391,18 @@ export function MarketplaceApp() {
             {view === "category" && category && <CategoryView catName={category.name} categorySlug={category.slug} onOpenProduct={openProduct} />}
             {view === "buying" && <BuyingDashboard onBrowse={goBrowse} />}
             {view === "selling" && <SellingDashboard onBrowse={goBrowse} onNew={() => setView("sell")} />}
-            {view === "product" && product && <ProductPage item={product} onBack={goBrowse} onOpenCategory={(slug, name) => openCategory({ name, slug })} onMakeOffer={() => setOfferOpen(true)} onOpenProduct={openProduct} onRequestItem={() => setChatOpen(true)} />}
+            {view === "product" && product && <ProductPage item={product} onBack={goBrowse} onOpenCategory={(slug, name) => openCategory({ name, slug })} onMakeOffer={() => setOfferOpen(true)} onOpenProduct={openProduct} onRequestItem={() => openRequest(product.title)} onNotify={() => openNotify(product.title)} />}
             {view === "search" && <SearchPage initialQuery={searchQuery} onOpenProduct={openProduct} />}
             {view === "account" && <AccountPage onBack={goBrowse} />}
-            {view === "cart" && <CartPage onBrowse={goBrowse} onCheckout={() => setView("checkout")} onOpenProduct={openProduct} deliverTo={locCity} onChangeAddress={() => setLocOpen(true)} onRequestItem={() => setChatOpen(true)} />}
+            {view === "cart" && <CartPage onBrowse={goBrowse} onCheckout={() => setView("checkout")} onOpenProduct={openProduct} deliverTo={locCity} onChangeAddress={() => setLocOpen(true)} onRequestItem={() => openRequest(cart.items[0]?.listing.title)} />}
             {view === "sell" && <SellPage onDone={goBrowse} />}
             {view === "checkout" && <CheckoutPage onBack={() => setView("cart")} onBrowse={goBrowse} onViewOrder={(id) => { setActiveOrderId(id); setView("track"); }} />}
             {view === "track" && <OrderTracking orderId={activeOrderId ?? undefined} onBack={goBrowse} onBrowse={goBrowse} />}
             {view === "info" && infoSlug && <InfoView slug={infoSlug} />}
           </ErrorBoundary>
+          {!["cart", "checkout", "track"].includes(view) && (
+            <Footer onBrowse={goBrowse} onSell={() => setView("sell")} onTrack={() => setView("track")} onInfo={openInfo} onCategory={(slug, name) => openCategory({ name, slug })} />
+          )}
         </main>
       </div>
 
@@ -401,9 +413,11 @@ export function MarketplaceApp() {
       <SideCart open={cartOpen} onClose={() => setCartOpen(false)} onCheckout={() => { setCartOpen(false); setView("checkout"); }} />
 
       {videoId && <VideoLightbox id={videoId} onClose={() => setVideoId(null)} />}
-      <ConciergeChat open={chatOpen} onToggle={() => setChatOpen((v) => !v)} />
+      <ConciergeChat open={chatOpen} onToggle={() => setChatOpen((v) => !v)} onSell={() => { setChatOpen(false); setView("sell"); }} onBrowse={() => { setChatOpen(false); goBrowse(); }} onTrack={() => { setChatOpen(false); setView("track"); }} />
       <CartExitPopup enabled={cart.count > 0} onClose={() => {}} />
       <AddonPopup open={addonOpen} categorySlugs={cart.items.filter((it) => !isAddonListing(it.listing)).map((it) => `${it.listing.categorySlug ?? ""} ${it.listing.categoryName ?? ""}`)} onClose={() => setAddonOpen(false)} />
+      <RequestItemModal open={requestOpen} itemTitle={requestTitle || undefined} onClose={() => setRequestOpen(false)} />
+      <NotifyMePopup open={notifyOpen} itemTitle={notifyTitle || undefined} onClose={() => setNotifyOpen(false)} />
     </div>
   );
 }
@@ -900,29 +914,65 @@ function CreateModal({ onClose }: { onClose: () => void }) {
 }
 
 /* ------------------------------- Concierge chat ------------------------------- */
-function ConciergeChat({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+function ConciergeChat({ open, onToggle, onSell, onBrowse, onTrack }: { open: boolean; onToggle: () => void; onSell?: () => void; onBrowse?: () => void; onTrack?: () => void }) {
+  const [msgs, setMsgs] = useState<{ role: "bot" | "user"; text: string }[]>([
+    { role: "bot", text: "👋 Hi! Welcome to Commonplace. How can we help?" },
+  ]);
+  const [input, setInput] = useState("");
+  const [showQuick, setShowQuick] = useState(true);
+
+  // Native quick-replies (mirror the live concierge), each routing somewhere useful.
+  const QUICK: { label: string; reply: string; action?: () => void }[] = [
+    { label: "🛒 I want to be a seller", reply: "Love it! Selling is easy — just name your item and we handle pickup, delivery, and payment. Taking you to the sell page…", action: onSell },
+    { label: "🔎 I'm looking for a specific item", reply: "Tell me what you're after and we'll track it down — even if it's not listed yet. Here are our latest picks…", action: onBrowse },
+    { label: "💬 I have a question about an order", reply: "No problem — head to Track order with your order number and I'll pull it up. Opening it now…", action: onTrack },
+  ];
+
+  function pick(q: { label: string; reply: string; action?: () => void }) {
+    setMsgs((m) => [...m, { role: "user", text: q.label }, { role: "bot", text: q.reply }]);
+    setShowQuick(false);
+    if (q.action) setTimeout(() => { try { q.action?.(); } catch { /* nav is best-effort */ } }, 500);
+  }
+
+  function send() {
+    const t = input.trim();
+    if (!t) return;
+    setMsgs((m) => [...m, { role: "user", text: t }, { role: "bot", text: "Thanks! A Commonplace concierge will follow up shortly. Meanwhile you can browse listings or start a sale anytime." }]);
+    setInput("");
+    setShowQuick(false);
+  }
+
   return (
     <div style={css("position:fixed;right:22px;bottom:22px;z-index:500;display:flex;flex-direction:column;align-items:flex-end;gap:12px")}>
       {open && (
-        <div style={css("width:330px;height:430px;background:var(--paper);border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 60px rgba(60,10,35,.28);display:flex;flex-direction:column;overflow:hidden;animation:pop .18s ease both")}>
+        <div style={css("width:340px;height:460px;background:var(--paper);border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 60px rgba(60,10,35,.28);display:flex;flex-direction:column;overflow:hidden;animation:pop .18s ease both")}>
           <div style={css("background:var(--maroon);color:#fff;padding:13px 15px;display:flex;align-items:center;gap:10px")}>
             <span style={css("width:32px;height:32px;flex:0 0 auto;border-radius:50%;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center")}>
               <svg width="18" height="18" viewBox="0 0 30 16" fill="none" stroke="#fff" strokeWidth={2.4}><circle cx="8" cy="8" r="5.4" /><circle cx="20" cy="8" r="5.4" /></svg>
             </span>
             <div style={css("flex:1;min-width:0")}>
-              <div style={css("font-size:14px;font-weight:700")}>Commonplace Concierge</div>
+              <div style={css("font-size:14px;font-weight:700")}>Customer Support</div>
               <div style={css("font-size:11px;opacity:.82")}>We handle the whole deal for you</div>
             </div>
             <div onClick={onToggle} style={css("cursor:pointer;opacity:.9")}><Close stroke="#fff" strokeWidth={2.4} /></div>
           </div>
           <div style={css("flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:9px;background:var(--cream)")}>
-            <div style={css("align-self:flex-start;max-width:82%")}>
-              <div style={css("background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:10px 12px;font-size:13px;line-height:1.4")}>Hi! I&apos;m your Commonplace concierge. Looking to buy or sell something big?</div>
-            </div>
+            {msgs.map((m, i) => (
+              <div key={i} style={sx("max-width:84%", m.role === "user" ? "align-self:flex-end" : "align-self:flex-start")}>
+                <div style={sx("border-radius:14px;padding:10px 12px;font-size:13px;line-height:1.45", m.role === "user" ? { background: "var(--maroon)", color: "#fff", borderBottomRightRadius: "5px" } : { background: "var(--paper)", border: "1px solid var(--line)", color: "var(--ink)", borderBottomLeftRadius: "5px" })}>{m.text}</div>
+              </div>
+            ))}
+            {showQuick && (
+              <div style={css("display:flex;flex-direction:column;gap:8px;margin-top:4px;align-items:flex-end")}>
+                {QUICK.map((q) => (
+                  <Hoverable key={q.label} as="button" onClick={() => pick(q)} styles="background:var(--paper);border:1px solid var(--maroon);color:var(--maroon);border-radius:16px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;text-align:left" hover="background:#fbf3f7">{q.label}</Hoverable>
+                ))}
+              </div>
+            )}
           </div>
           <div style={css("border-top:1px solid var(--line);padding:10px;display:flex;gap:8px;align-items:center;background:var(--paper)")}>
-            <input placeholder="Ask us anything…" style={css("flex:1;min-width:0;border:1px solid var(--line);border-radius:20px;padding:9px 14px;font-size:13px;outline:none;background:var(--cream);color:var(--ink)")} />
-            <div style={css("width:36px;height:36px;flex:0 0 auto;border-radius:50%;background:var(--maroon);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer")}>
+            <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} placeholder="Type here and press enter…" style={css("flex:1;min-width:0;border:1px solid var(--line);border-radius:20px;padding:9px 14px;font-size:13px;outline:none;background:var(--cream);color:var(--ink)")} />
+            <div onClick={send} style={css("width:36px;height:36px;flex:0 0 auto;border-radius:50%;background:var(--maroon);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer")}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}><path d="M22 2 11 13M22 2 15 22l-4-9-9-4 20-7Z" /></svg>
             </div>
           </div>

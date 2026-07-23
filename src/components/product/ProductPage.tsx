@@ -32,6 +32,7 @@ export interface ProductPageProps {
   onMakeOffer: () => void;
   onOpenProduct?: (item: Listing) => void;
   onRequestItem?: () => void;
+  onNotify?: () => void;
 }
 
 /* pastel benefit tiles (live order + tints) */
@@ -99,7 +100,7 @@ function RelatedCard({ it, onOpen }: { it: Listing; onOpen?: () => void }) {
 }
 
 /* ================================================================== */
-export function ProductPage({ item, onBack, onOpenCategory, onMakeOffer, onOpenProduct, onRequestItem }: ProductPageProps) {
+export function ProductPage({ item, onBack, onOpenCategory, onMakeOffer, onOpenProduct, onRequestItem, onNotify }: ProductPageProps) {
   const { add } = useCart();
   const [imgIdx, setImgIdx] = useState(0);
   const [wish, setWish] = useState(false);
@@ -159,7 +160,7 @@ export function ProductPage({ item, onBack, onOpenCategory, onMakeOffer, onOpenP
             ) : null}
 
             {/* Wishlist */}
-            <span onClick={() => setWish((w) => !w)} style={css("position:absolute;top:12px;right:12px;width:38px;height:38px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.15);display:flex;align-items:center;justify-content:center;cursor:pointer")}>
+            <span onClick={() => setWish((w) => { const nv = !w; if (nv) onNotify?.(); return nv; })} style={css("position:absolute;top:12px;right:12px;width:38px;height:38px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.15);display:flex;align-items:center;justify-content:center;cursor:pointer")}>
               <svg width="19" height="19" viewBox="0 0 24 24" fill={wish ? PLUM : "none"} stroke={wish ? PLUM : "#666"} strokeWidth={2}><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" /></svg>
             </span>
 
