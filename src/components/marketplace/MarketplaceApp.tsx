@@ -1,20 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { css, sx, Hoverable } from "@/lib/design/css";
 import {
   CAT_GROUPS,
   REVIEWS,
   ARTICLES,
   CONDITIONS,
-  FEED,
   BROWSE_CHIPS,
   ALL_CATEGORY_NAMES,
   findCategoryBySlug,
   type CatItem,
-  type FeedItem,
 } from "./data";
 import { resolveSellSpec, type Field } from "./sellSchema";
+import { fetchListings } from "@/lib/clientApi";
+import { formatPrice, type Listing } from "@/lib/listing";
 import { Chevron, ChevronRight, ChevronLeft, Pin, Plus, Close, Search } from "./icons";
 
 const LOGO = "/design-assets/805cd68e-4bc0-474c-9062-282704b82b24.svg";
@@ -29,7 +29,7 @@ const ROOT_VARS =
 export function MarketplaceApp() {
   const [view, setView] = useState<View>("browse");
   const [category, setCategory] = useState<CatItem | null>(null);
-  const [product, setProduct] = useState<FeedItem | null>(null);
+  const [product, setProduct] = useState<Listing | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [locOpen, setLocOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -47,7 +47,7 @@ export function MarketplaceApp() {
     setCategory(item);
     setView("category");
   }
-  function openProduct(item: FeedItem) {
+  function openProduct(item: Listing) {
     setProduct(item);
     setView("product");
   }
@@ -64,11 +64,6 @@ export function MarketplaceApp() {
       return next;
     });
   }
-
-  const categoryResults = useMemo(
-    () => (category ? FEED.filter((f) => f.categorySlug === category.slug) : []),
-    [category],
-  );
 
   return (
     <div
@@ -298,9 +293,7 @@ export function MarketplaceApp() {
                 </div>
                 <div style={css("padding:13px 14px")}>
                   <div style={css("font-family:'Newsreader',serif;font-size:19px;font-weight:500;line-height:1.15")}>{category.name}</div>
-                  <div style={css("font-size:12.5px;color:var(--muted);margin-top:3px")}>
-                    <b style={css("color:var(--blueInk)")}>{categoryResults.length}</b> of {categoryResults.length} shown
-                  </div>
+                  <div style={css("font-size:12.5px;color:var(--muted);margin-top:3px")}>Browsing live Commonplace inventory</div>
                   <div style={css("height:6px;background:#eee4d8;border-radius:9px;margin-top:10px;overflow:hidden")}>
                     <i style={css("display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--blueInk),var(--gold));transition:width .35s ease")} />
                   </div>
@@ -314,7 +307,7 @@ export function MarketplaceApp() {
         {/* ============================ MAIN ============================ */}
         <main style={css("flex:1;overflow-y:auto;padding:20px 22px 56px 7px")}>
           {view === "browse" && <BrowseView locCity={locCity} onOpenProduct={openProduct} />}
-          {view === "category" && category && <CategoryView catName={category.name} results={categoryResults} onOpenProduct={openProduct} />}
+          {view === "category" && category && <CategoryView catName={category.name} categorySlug={category.slug} onOpenProduct={openProduct} />}
           {view === "buying" && <BuyingView onBrowse={goBrowse} />}
           {view === "selling" && <SellingView onBrowse={goBrowse} onNew={() => setCreateOpen(true)} />}
           {view === "product" && product && <ProductView item={product} onBrowse={goBrowse} onOpenCategory={openCategory} onMakeOffer={() => setCreateOpen(false)} />}
@@ -349,48 +342,103 @@ function NavRow({ active, onClick, label, icon, chevron, border }: {
 }
 
 /* ------------------------------- Product card ------------------------------- */
-function ProductCard({ it, tint = "#EDE4D6", tint2 = "#E5DACA" }: { it: (typeof FEED)[number]; tint?: string; tint2?: string }) {
+function ProductCard({ it, tint = "#EDE4D6", tint2 = "#E5DACA" }: { it: Listing; tint?: string; tint2?: string }) {
+  const img = it.images[0];
   return (
     <Hoverable styles="transition:box-shadow .2s ease,border-color .2s ease;background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden;cursor:pointer;animation:pop .3s ease both;box-shadow:0 3px 10px rgba(60,10,35,.05)" hover="box-shadow:0 18px 38px rgba(60,10,35,.22);border-color:#d9b7c2">
-      <div style={sx("position:relative;aspect-ratio:4/3", { background: `repeating-linear-gradient(135deg,${tint} 0 15px,${tint2} 15px 30px)` })}>
-        <div style={css("position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px")}>
-          <span style={css("font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;letter-spacing:.12em;color:#9a8c78;text-align:center;text-transform:uppercase")}>{it.ph}</span>
-        </div>
-        <div style={css("position:absolute;top:9px;left:9px;background:rgba(255,255,255,.95);color:var(--ink);padding:3px 8px;border-radius:20px;font-size:10px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.1)")}>{it.cond}</div>
+      <div style={sx("position:relative;aspect-ratio:4/3;overflow:hidden", { background: `repeating-linear-gradient(135deg,${tint} 0 15px,${tint2} 15px 30px)` })}>
+        {img ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={img} alt={it.title} loading="lazy" style={css("position:absolute;inset:0;width:100%;height:100%;object-fit:cover")} />
+        ) : (
+          <div style={css("position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px")}>
+            <span style={css("font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;letter-spacing:.12em;color:#9a8c78;text-align:center;text-transform:uppercase")}>{it.categoryName}</span>
+          </div>
+        )}
+        {it.condition && (
+          <div style={css("position:absolute;top:9px;left:9px;background:rgba(255,255,255,.95);color:var(--ink);padding:3px 8px;border-radius:20px;font-size:10px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.1)")}>{it.condition}</div>
+        )}
+        {it.savingsPct ? (
+          <div style={css("position:absolute;top:9px;right:9px;background:var(--green);color:#fff;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:800;box-shadow:0 1px 4px rgba(0,0,0,.12)")}>Save {it.savingsPct}%</div>
+        ) : null}
       </div>
       <div style={css("padding:10px 11px 11px")}>
         <div style={css("font-family:'Newsreader',serif;font-size:13px;font-weight:500;line-height:1.28;height:33px;overflow:hidden;text-wrap:pretty")}>{it.title}</div>
-        <div style={css("display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--muted);margin-top:5px")}>
-          <Pin size={12} />{it.loc} · {it.dist}
-        </div>
-        <div style={css("font-size:15px;font-weight:800;letter-spacing:-.3px;margin-top:5px")}>{it.price}</div>
-        <div style={css("display:flex;gap:6px;flex-wrap:nowrap;overflow:hidden;margin-top:7px")}>
-          {it.specs.map((s, i) => (
-            <span key={i} style={css("font-size:9px;font-weight:600;color:#6a5f5a;background:var(--putty);border:1px solid var(--line);padding:2px 6px;border-radius:6px;white-space:nowrap")}>{s}</span>
-          ))}
+        {it.location && (
+          <div style={css("display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--muted);margin-top:5px")}>
+            <Pin size={12} />{it.location}
+          </div>
+        )}
+        <div style={css("display:flex;align-items:baseline;gap:7px;margin-top:5px")}>
+          <span style={css("font-size:15px;font-weight:800;letter-spacing:-.3px")}>{formatPrice(it.priceCents)}</span>
+          {it.retailCents ? <span style={css("font-size:11px;color:var(--muted);text-decoration:line-through")}>{formatPrice(it.retailCents)}</span> : null}
         </div>
       </div>
     </Hoverable>
   );
 }
 
+/* ------------------------------- Loading skeleton ------------------------------- */
+function CardSkeleton() {
+  return (
+    <div style={css("background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden")}>
+      <div style={css("aspect-ratio:4/3;background:repeating-linear-gradient(135deg,#EDE4D6 0 15px,#E5DACA 15px 30px);opacity:.55")} />
+      <div style={css("padding:11px")}>
+        <div style={css("height:11px;border-radius:5px;background:var(--putty);margin-bottom:7px")} />
+        <div style={css("height:11px;width:60%;border-radius:5px;background:var(--putty);margin-bottom:10px")} />
+        <div style={css("height:14px;width:40%;border-radius:5px;background:var(--line)")} />
+      </div>
+    </div>
+  );
+}
+
+const GRID = "display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px";
+
 /* ------------------------------- Sort select ------------------------------- */
-function SortSelect() {
+function SortSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <label style={css("display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13.5px")}>Sort
-      <select style={css("border:1px solid var(--line);background:var(--putty);border-radius:10px;padding:8px 12px;font-size:13.5px;font-weight:600;color:var(--ink);cursor:pointer")}>
-        <option value="rec">Recommended</option>
-        <option value="plh">Price: low to high</option>
-        <option value="phl">Price: high to low</option>
-        <option value="new">Newest first</option>
-        <option value="cond">Condition: best first</option>
+      <select value={value} onChange={(e) => onChange(e.target.value)} style={css("border:1px solid var(--line);background:var(--putty);border-radius:10px;padding:8px 12px;font-size:13.5px;font-weight:600;color:var(--ink);cursor:pointer")}>
+        <option value="recommended">Recommended</option>
+        <option value="price">Price: low to high</option>
+        <option value="price-desc">Price: high to low</option>
+        <option value="date">Newest first</option>
+        <option value="rating">Top rated</option>
       </select>
     </label>
   );
 }
 
+function EmptyState({ text }: { text: string }) {
+  return (
+    <div style={css("text-align:center;padding:70px 20px;color:var(--muted)")}>
+      <div style={css("font-family:'Newsreader',serif;font-size:20px;color:var(--ink);margin-bottom:6px")}>Nothing here yet</div>
+      <div style={css("font-size:14px")}>{text}</div>
+    </div>
+  );
+}
+
 /* ------------------------------- Browse view ------------------------------- */
-function BrowseView({ locCity, onOpenProduct }: { locCity: string; onOpenProduct: (it: FeedItem) => void }) {
+function BrowseView({ locCity, onOpenProduct }: { locCity: string; onOpenProduct: (it: Listing) => void }) {
+  const [items, setItems] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [chip, setChip] = useState("");
+  const [sort, setSort] = useState("recommended");
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    fetchListings({ perPage: 20, category: chip || undefined, orderby: sort, city: locCity }).then((d) => {
+      if (alive) {
+        setItems(d.items);
+        setLoading(false);
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, [chip, sort, locCity]);
+
   return (
     <div>
       <div style={css("display:flex;align-items:center;gap:13px;background:#F9AEB7;border:1px solid #f2939e;border-radius:12px;padding:12px 16px;margin-bottom:18px")}>
@@ -406,28 +454,58 @@ function BrowseView({ locCity, onOpenProduct }: { locCity: string; onOpenProduct
           <h2 style={css("font-family:'Newsreader',serif;font-size:23px;font-weight:500;letter-spacing:-.4px")}>Today&apos;s picks</h2>
           <p style={css("color:var(--muted);font-size:12.5px;margin-top:1px")}>Verified, inspected, and delivered to {locCity}</p>
         </div>
-        <SortSelect />
+        <SortSelect value={sort} onChange={setSort} />
       </div>
       <div style={css("display:flex;gap:9px;flex-wrap:wrap;margin-bottom:22px")}>
-        {BROWSE_CHIPS.map((c) => (
-          <Hoverable key={c.label} styles={sx("transition:box-shadow .16s ease;padding:9px 16px;border-radius:20px;font-size:13.5px;font-weight:700;cursor:pointer", { border: `1px solid ${c.border}`, background: c.bg, color: c.fg })} hover="box-shadow:0 6px 16px rgba(60,10,35,.13)">
-            {c.label}
-          </Hoverable>
-        ))}
+        {BROWSE_CHIPS.map((c) => {
+          const active = chip === c.slug;
+          return (
+            <Hoverable key={c.label} onClick={() => setChip(c.slug)}
+              styles={sx("transition:box-shadow .16s ease;padding:9px 16px;border-radius:20px;font-size:13.5px;font-weight:700;cursor:pointer",
+                active ? { border: "1px solid var(--maroon)", background: "var(--maroon)", color: "#fff" } : { border: "1px solid var(--line)", background: "var(--paper)", color: "var(--ink)" })}
+              hover="box-shadow:0 6px 16px rgba(60,10,35,.13)">
+              {c.label}
+            </Hoverable>
+          );
+        })}
       </div>
-      <div style={css("display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px")}>
-        {FEED.map((it) => (
-          <div key={it.id} onClick={() => onOpenProduct(it)}>
-            <ProductCard it={it} />
-          </div>
-        ))}
-      </div>
+      {loading ? (
+        <div style={css(GRID)}>{Array.from({ length: 15 }).map((_, i) => (<CardSkeleton key={i} />))}</div>
+      ) : items.length > 0 ? (
+        <div style={css(GRID)}>
+          {items.map((it) => (
+            <div key={it.id} onClick={() => onOpenProduct(it)}><ProductCard it={it} /></div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState text="We couldn't load inventory just now — try another filter." />
+      )}
     </div>
   );
 }
 
 /* ------------------------------- Category view ------------------------------- */
-function CategoryView({ catName, results, onOpenProduct }: { catName: string; results: typeof FEED; onOpenProduct: (it: FeedItem) => void }) {
+function CategoryView({ catName, categorySlug, onOpenProduct }: { catName: string; categorySlug: string; onOpenProduct: (it: Listing) => void }) {
+  const [items, setItems] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [total, setTotal] = useState(0);
+  const [sort, setSort] = useState("recommended");
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    fetchListings({ category: categorySlug, perPage: 24, orderby: sort }).then((d) => {
+      if (alive) {
+        setItems(d.items);
+        setTotal(d.total);
+        setLoading(false);
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, [categorySlug, sort]);
+
   return (
     <div>
       <div style={css("display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:16px")}>
@@ -437,22 +515,21 @@ function CategoryView({ catName, results, onOpenProduct }: { catName: string; re
         </div>
         <div style={css("display:flex;align-items:center;gap:16px")}>
           <div style={css("font-size:15px;color:var(--muted)")}>
-            <b style={css("color:var(--blueInk);font-size:24px;font-family:'Newsreader',serif;font-weight:600")}>{results.length}</b> of {results.length} match
+            <b style={css("color:var(--blueInk);font-size:24px;font-family:'Newsreader',serif;font-weight:600")}>{loading ? "…" : items.length}</b> of {total.toLocaleString()} match
           </div>
-          <SortSelect />
+          <SortSelect value={sort} onChange={setSort} />
         </div>
       </div>
-      {results.length > 0 ? (
-        <div style={css("display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px")}>
-          {results.map((it) => (
+      {loading ? (
+        <div style={css(GRID)}>{Array.from({ length: 15 }).map((_, i) => (<CardSkeleton key={i} />))}</div>
+      ) : items.length > 0 ? (
+        <div style={css(GRID)}>
+          {items.map((it) => (
             <div key={it.id} onClick={() => onOpenProduct(it)}><ProductCard it={it} tint="#efe7dc" tint2="#e7dccc" /></div>
           ))}
         </div>
       ) : (
-        <div style={css("text-align:center;padding:70px 20px;color:var(--muted)")}>
-          <div style={css("font-family:'Newsreader',serif;font-size:20px;color:var(--ink);margin-bottom:6px")}>No exact matches in this sample</div>
-          <div style={css("font-size:14px")}>Clear a filter to widen your search.</div>
-        </div>
+        <EmptyState text={`No ${catName.toLowerCase()} in stock right now — check back soon.`} />
       )}
     </div>
   );
@@ -559,61 +636,188 @@ function SellingView({ onBrowse, onNew }: { onBrowse: () => void; onNew: () => v
 }
 
 /* ------------------------------- Product view ------------------------------- */
+const PAYMENTS = ["VISA", "MC", "AMEX", "Discover", "PayPal", "Venmo", "Klarna"];
+const FEATURES = [
+  ["FREE delivery & install", "var(--blueBg)", "var(--blueInk)"],
+  ["Inspect upon delivery", "var(--tint)", "var(--maroon)"],
+  ["2-month warranty included", "var(--yellowBg)", "var(--gold)"],
+  ["Verified sellers", "#efe7f3", "var(--purple)"],
+] as const;
+const HOW_STEPS = [
+  ["1", "Buy with $1", "Reserve any item with a dollar. You're only charged the full amount at delivery.", "var(--maroon)"],
+  ["2", "We bring it inside", "Delivery and setup in the room of your choice. No schlepping, no favors.", "var(--gold)"],
+  ["3", "Inspect, then pay", "Test it out. Open every drawer. Charge the rest only after you say yes.", "var(--blueInk)"],
+  ["4", "Peace of mind, covered", "Dedicated human support on every order. 12-month warranty available.", "var(--purple)"],
+] as const;
+const FAQS: [string, string][] = [
+  ["How does the $1 deposit work?", "You pay $1 today to reserve the item. We bring it to your door, you inspect it in person, and only then is the rest of the balance charged. If anything is off, you walk away — your dollar is refunded."],
+  ["What if I don't like it once it's here?", "You inspect before you pay the balance. If it's not right, you don't take it and you're not charged."],
+  ["Is \"like new\" really like new?", "Every listing is verified and inspected at pickup. Condition is confirmed before it's delivered."],
+  ["How does delivery actually work?", "A Commonplace driver picks up, transports, and sets up the item in your home — white-glove, no meetups."],
+];
+
 function ProductView({ item, onBrowse, onOpenCategory, onMakeOffer }: {
-  item: FeedItem; onBrowse: () => void; onOpenCategory: (c: CatItem) => void; onMakeOffer: () => void;
+  item: Listing; onBrowse: () => void; onOpenCategory: (c: CatItem) => void; onMakeOffer: () => void;
 }) {
   const cat = findCategoryBySlug(item.categorySlug);
+  const [active, setActive] = useState(0);
+  const [related, setRelated] = useState<Listing[]>([]);
+  const [faqOpen, setFaqOpen] = useState<number | null>(0);
+  const [question, setQuestion] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    setActive(0);
+    fetchListings({ category: item.categorySlug, perPage: 5, orderby: "recommended" }).then((d) => {
+      if (alive) setRelated(d.items.filter((x) => x.id !== item.id).slice(0, 4));
+    });
+    return () => { alive = false; };
+  }, [item.id, item.categorySlug]);
+
+  const heroImg = item.images[active] ?? item.images[0];
+  const rating = item.rating > 0 ? item.rating.toFixed(1) : "5.0";
+  const saveDollars = item.retailCents ? Math.round((item.retailCents - item.priceCents) / 100) : 0;
+
   return (
-    <div style={css("max-width:1000px")}>
-      <div style={css("display:flex;align-items:center;gap:8px;font-size:13.5px;margin-bottom:14px")}>
+    <div style={css("max-width:1040px")}>
+      <div style={css("display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:14px")}>
         <a onClick={onBrowse} style={css("color:var(--blueInk);font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px")}><ChevronLeft stroke="currentColor" />Browse</a>
         {cat && (<><span style={css("color:var(--muted)")}>/</span><a onClick={() => onOpenCategory(cat)} style={css("color:var(--blueInk);font-weight:600;cursor:pointer")}>{cat.name}</a></>)}
+        <span style={css("color:var(--muted)")}>/</span><span style={css("color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px")}>{item.title}</span>
       </div>
+
       <div style={css("display:grid;grid-template-columns:1.15fr 1fr;gap:26px;align-items:start")}>
-        {/* Media */}
+        {/* Gallery */}
         <div>
-          <div style={css("position:relative;aspect-ratio:4/3;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:repeating-linear-gradient(135deg,#EDE4D6 0 18px,#E5DACA 18px 36px);display:flex;align-items:center;justify-content:center")}>
-            <span style={css("font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px;letter-spacing:.14em;color:#9a8c78;text-transform:uppercase")}>{item.ph}</span>
-            <div style={css("position:absolute;top:12px;left:12px;background:rgba(255,255,255,.95);color:var(--ink);padding:5px 11px;border-radius:20px;font-size:11.5px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.1)")}>{item.cond}</div>
+          <div style={css("position:relative;aspect-ratio:1;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:repeating-linear-gradient(135deg,#EDE4D6 0 18px,#E5DACA 18px 36px);display:flex;align-items:center;justify-content:center")}>
+            {heroImg ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={heroImg} alt={item.title} style={css("position:absolute;inset:0;width:100%;height:100%;object-fit:cover")} />
+            ) : (
+              <span style={css("font-family:ui-monospace,monospace;font-size:13px;letter-spacing:.14em;color:#9a8c78;text-transform:uppercase")}>{item.categoryName}</span>
+            )}
+            {item.savingsPct ? <div style={css("position:absolute;top:12px;left:12px;background:var(--green);color:#fff;padding:5px 11px;border-radius:20px;font-size:12px;font-weight:800")}>Save {item.savingsPct}%</div> : null}
+            {item.condition && <div style={css("position:absolute;top:12px;right:12px;background:rgba(255,255,255,.95);color:var(--ink);padding:5px 11px;border-radius:20px;font-size:11.5px;font-weight:700")}>{item.condition}</div>}
           </div>
-          <div style={css("display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px")}>
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} style={css("aspect-ratio:1;border-radius:9px;border:1px solid var(--line);background:repeating-linear-gradient(135deg,#EDE4D6 0 10px,#E5DACA 10px 20px)")} />
-            ))}
-          </div>
+          {item.images.length > 1 && (
+            <div style={css("display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:8px")}>
+              {item.images.slice(0, 5).map((src, i) => (
+                <div key={i} onClick={() => setActive(i)} style={sx("aspect-ratio:1;border-radius:9px;overflow:hidden;cursor:pointer", { border: i === active ? "2px solid var(--maroon)" : "1px solid var(--line)" })}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt="" style={css("width:100%;height:100%;object-fit:cover")} />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        {/* Detail */}
+
+        {/* Buy box */}
         <div>
-          <div style={css("font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--blueInk);font-weight:700")}>{cat?.name ?? "Listing"}</div>
-          <h1 style={css("font-family:'Newsreader',serif;font-size:30px;font-weight:500;line-height:1.12;letter-spacing:-.4px;margin-top:4px")}>{item.title}</h1>
-          <div style={css("display:flex;align-items:center;gap:5px;font-size:13px;color:var(--muted);margin-top:8px")}><Pin size={14} />{item.loc} · {item.dist} away</div>
-          <div style={css("font-size:30px;font-weight:800;letter-spacing:-.5px;margin-top:16px")}>{item.price}</div>
-          <div style={css("font-size:13px;color:var(--green);font-weight:600;margin-top:2px")}>Free delivery within 100 miles</div>
-          <div style={css("display:flex;flex-wrap:wrap;gap:7px;margin-top:14px")}>
-            {item.specs.map((s, i) => (
-              <span key={i} style={css("font-size:11px;font-weight:600;color:#6a5f5a;background:var(--putty);border:1px solid var(--line);padding:4px 10px;border-radius:8px")}>{s}</span>
-            ))}
+          <div style={css("display:flex;align-items:center;justify-content:space-between;gap:10px")}>
+            <div style={css("font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--blueInk);font-weight:700")}>{item.categoryName}</div>
+            <div style={css("display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:var(--muted)")}><span style={css("color:var(--gold)")}>★</span>{rating}</div>
           </div>
-          <div style={css("display:flex;gap:10px;margin-top:20px")}>
-            <button style={css("flex:1;background:var(--maroon);color:#fff;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit")}>Reserve &amp; buy</button>
-            <button onClick={onMakeOffer} style={css("flex:1;background:#fff;color:var(--maroon);border:1px solid var(--maroon);border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit")}>Make an offer</button>
+          <h1 style={css("font-family:'Newsreader',serif;font-size:27px;font-weight:500;line-height:1.14;letter-spacing:-.4px;margin-top:4px")}>{item.title}</h1>
+          {item.location && <div style={css("display:flex;align-items:center;gap:5px;font-size:13px;color:var(--muted);margin-top:8px")}><Pin size={14} />{item.location}</div>}
+
+          <div style={css("margin-top:16px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px")}>
+            <div style={css("display:flex;align-items:baseline;gap:10px")}>
+              <span style={css("font-size:30px;font-weight:800;letter-spacing:-.5px")}>{formatPrice(item.priceCents)}</span>
+              {item.retailCents ? <span style={css("font-size:15px;color:var(--muted);text-decoration:line-through")}>Retail {formatPrice(item.retailCents)}</span> : null}
+            </div>
+            {saveDollars > 0 && <div style={css("font-size:13px;color:var(--green);font-weight:700;margin-top:2px")}>You save ${saveDollars.toLocaleString()} · Up to 80% off across Commonplace</div>}
+            <div style={css("display:inline-flex;align-items:center;gap:6px;margin-top:12px;background:var(--maroon);color:#fff;border-radius:20px;padding:5px 12px;font-size:12px;font-weight:800")}>Pay $1 upfront<span style={css("font-weight:500;opacity:.85")}>rest on delivery</span></div>
+            <button style={css("width:100%;margin-top:12px;background:var(--maroon);color:#fff;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px")}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1.4" /><circle cx="18" cy="21" r="1.4" /><path d="M1 1h3l2.6 12.4a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 2-1.6L23 6H6" /></svg>
+              Add to cart
+            </button>
+            <button onClick={onMakeOffer} style={css("width:100%;margin-top:8px;background:#fff;color:var(--maroon);border:1px solid var(--maroon);border-radius:12px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit")}>Make an offer</button>
+            <div style={css("display:flex;flex-wrap:wrap;gap:5px;margin-top:12px")}>
+              {PAYMENTS.map((p) => (<span key={p} style={css("font-size:10px;font-weight:800;color:var(--muted);background:var(--putty);border:1px solid var(--line);border-radius:5px;padding:3px 7px")}>{p}</span>))}
+            </div>
           </div>
-          <div style={css("margin-top:18px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px")}>
-            <div style={css("font-size:14px;font-weight:800;margin-bottom:10px")}>How Commonplace protects you</div>
-            {[
-              ["Inspected at pickup", "Our team verifies the item before it ever ships."],
-              ["White-glove delivery", "Delivered and set up in your home — no meetups."],
-              ["Pay after you test it", "Funds only release once it works at your place."],
-            ].map(([t, d]) => (
-              <div key={t} style={css("display:flex;gap:10px;align-items:flex-start;margin-bottom:9px")}>
-                <span style={css("width:18px;height:18px;flex:0 0 auto;border-radius:50%;background:var(--greenBg);color:var(--green);display:flex;align-items:center;justify-content:center;margin-top:1px")}>
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}><path d="M20 6 9 17l-5-5" /></svg>
-                </span>
-                <div><div style={css("font-size:13px;font-weight:700")}>{t}</div><div style={css("font-size:12px;color:var(--muted);line-height:1.35")}>{d}</div></div>
+
+          <div style={css("display:flex;align-items:center;gap:10px;margin-top:12px;background:var(--blueBg);border:1px solid #cfe0f2;border-radius:12px;padding:11px 14px;font-size:13px")}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--blueInk)" strokeWidth={2}><rect x="1" y="6" width="14" height="10" rx="1.5" /><path d="M15 9h4l3 3.5V16h-7z" /><circle cx="6" cy="17.5" r="1.8" /><circle cx="18" cy="17.5" r="1.8" /></svg>
+            <span>Order by <b>today</b>, receive by <b>Monday</b>. Delivery available nationwide.</span>
+          </div>
+
+          <div style={css("display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px")}>
+            {FEATURES.map(([t, bg, fg]) => (
+              <div key={t} style={sx("display:flex;align-items:center;gap:8px;border-radius:12px;padding:10px 12px;font-size:12px;font-weight:700", { background: bg, color: fg })}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6}><path d="M20 6 9 17l-5-5" /></svg>{t}
               </div>
             ))}
           </div>
-          <div style={css("margin-top:12px;font-size:13px;color:var(--muted)")}>Have a question? <span style={css("color:var(--blueInk);font-weight:700;cursor:pointer")}>Ask via Commonplace →</span></div>
+        </div>
+      </div>
+
+      {/* Product details */}
+      <div style={css("margin-top:34px;border-top:1px solid var(--line);padding-top:22px")}>
+        <div style={css("font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--maroon);font-weight:800;margin-bottom:14px")}>Product details</div>
+        <div style={css("display:grid;grid-template-columns:1.4fr 1fr;gap:34px;align-items:start")}>
+          <div style={css("display:flex;flex-direction:column;gap:10px;font-size:14px;line-height:1.55;color:#3a3033")}>
+            {item.description.length > 0 ? item.description.map((p, i) => (<p key={i}>{p}</p>)) : <p style={css("color:var(--muted)")}>No description provided.</p>}
+          </div>
+          <div style={css("border:1px solid var(--line);border-radius:12px;overflow:hidden")}>
+            {[["SKU", item.sku || "—"], ["Condition", item.condition ?? "—"], ["Listing ID", `CP-${item.id}`], ["Dimensions", item.dimensions ?? "—"], ["Weight", item.weight ?? "—"]].map(([k, v], i) => (
+              <div key={k} style={sx("display:flex;justify-content:space-between;gap:12px;padding:12px 14px;font-size:13px", i > 0 ? "border-top:1px solid var(--line)" : "")}>
+                <span style={css("color:var(--muted)")}>{k}</span><span style={css("font-weight:600;text-align:right")}>{v}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Customers also bought */}
+      {related.length > 0 && (
+        <div style={css("margin-top:34px;border-top:1px solid var(--line);padding-top:22px")}>
+          <h2 style={css("font-family:'Newsreader',serif;font-size:26px;font-weight:500;margin-bottom:16px")}>Customers also bought</h2>
+          <div style={css("display:grid;grid-template-columns:repeat(4,1fr);gap:12px")}>
+            {related.map((r) => (<div key={r.id} onClick={() => { window.scrollTo(0, 0); onOpenCategory({ name: r.categoryName, slug: r.categorySlug }); }}><ProductCard it={r} /></div>))}
+          </div>
+        </div>
+      )}
+
+      {/* How it works */}
+      <div style={css("margin-top:38px;border-top:1px solid var(--line);padding-top:22px")}>
+        <div style={css("font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--maroon);font-weight:800")}>How it works</div>
+        <h2 style={css("font-family:'Newsreader',serif;font-size:30px;font-weight:500;margin:4px 0 18px")}>Buying used, finally done right.</h2>
+        <div style={css("display:grid;grid-template-columns:repeat(4,1fr);gap:14px")}>
+          {HOW_STEPS.map(([n, t, d, c]) => (
+            <div key={n} style={css("background:var(--tint);border-radius:14px;padding:18px")}>
+              <span style={sx("width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px", { background: c })}>{n}</span>
+              <div style={css("font-family:'Newsreader',serif;font-size:17px;font-weight:600;margin-top:12px")}>{t}</div>
+              <div style={css("font-size:12.5px;color:var(--muted);line-height:1.45;margin-top:5px")}>{d}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* FAQ */}
+      <div style={css("margin-top:38px;border-top:1px solid var(--line);padding-top:22px;max-width:820px")}>
+        <div style={css("font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--maroon);font-weight:800")}>FAQ</div>
+        <h2 style={css("font-family:'Newsreader',serif;font-size:30px;font-weight:500;margin:4px 0 12px")}>Questions, answered.</h2>
+        {FAQS.map(([q, a], i) => (
+          <div key={i} style={css("border-top:1px solid var(--line)")}>
+            <div onClick={() => setFaqOpen(faqOpen === i ? null : i)} style={css("display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 0;cursor:pointer")}>
+              <span style={css("font-size:15px;font-weight:700")}>{q}</span>
+              <span style={sx("width:26px;height:26px;flex:0 0 auto;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800", faqOpen === i ? { background: "var(--maroon)", color: "#fff" } : { background: "var(--putty)", color: "var(--ink)" })}>{faqOpen === i ? "–" : "+"}</span>
+            </div>
+            {faqOpen === i && <p style={css("font-size:14px;color:var(--muted);line-height:1.55;padding:0 0 16px")}>{a}</p>}
+          </div>
+        ))}
+      </div>
+
+      {/* Ask the seller */}
+      <div style={css("margin-top:38px;border-top:1px solid var(--line);padding-top:22px;max-width:820px")}>
+        <h2 style={css("font-family:'Newsreader',serif;font-size:26px;font-weight:500")}>Ask the Seller</h2>
+        <p style={css("color:var(--muted);font-size:13.5px;margin:2px 0 14px")}>Routed and answered through Commonplace — buyers and sellers never message each other directly.</p>
+        <div style={css("border:1px solid var(--line);border-radius:14px;padding:16px;background:var(--paper)")}>
+          <textarea value={question} onChange={(e) => setQuestion(e.target.value)} rows={3} placeholder="Ask about condition, accessories…" style={css("width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-size:14px;outline:none;resize:vertical;line-height:1.4")} />
+          <div style={css("display:flex;justify-content:flex-end;margin-top:10px")}>
+            <button style={sx("border:none;border-radius:9px;padding:9px 18px;font-size:13.5px;font-weight:700;font-family:inherit;cursor:pointer", question.trim() ? { background: "var(--maroon)", color: "#fff" } : { background: "var(--putty)", color: "var(--muted)" })}>Ask via Commonplace</button>
+          </div>
         </div>
       </div>
     </div>
