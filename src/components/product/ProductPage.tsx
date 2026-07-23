@@ -524,7 +524,7 @@ export function ProductPage({ item, onBack, onOpenCategory, onMakeOffer }: Produ
                   {cells.map((on, ci) => (
                     <td key={ci} style={sx("padding:13px 12px;text-align:center;border-left:1px solid var(--line)", ci === 0 ? "background:var(--tint)" : (ri % 2 ? "background:var(--paper)" : "background:#fffdf9"))}>
                       {on ? (
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={ci === 0 ? "var(--maroon)" : "var(--green)"} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" style={css("display:inline-block;vertical-align:middle")}><path d="M20 6 9 17l-5-5" /></svg>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={ci === 0 ? "#E9B355" : "var(--green)"} strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round" style={css("display:inline-block;vertical-align:middle")}><path d="M20 6 9 17l-5-5" /></svg>
                       ) : (
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c9bcae" strokeWidth={2.4} strokeLinecap="round" style={css("display:inline-block;vertical-align:middle")}><path d="M6 6l12 12M18 6 6 18" /></svg>
                       )}

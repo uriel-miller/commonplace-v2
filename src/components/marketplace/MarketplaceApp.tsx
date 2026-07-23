@@ -17,6 +17,7 @@ import { Chevron, ChevronRight, ChevronLeft, Pin, Plus, Close, Search } from "./
 import { useCart } from "@/components/cart/CartProvider";
 import { SideCart } from "@/components/cart/SideCart";
 import { CartPage } from "@/components/cart/CartPage";
+import { SellPage } from "@/components/sell/SellPage";
 import { AccountPage } from "@/components/pages/account/AccountPage";
 import { SearchPage } from "@/components/pages/search/SearchPage";
 import { resolveInfoPage } from "@/components/pages/info";
@@ -42,7 +43,7 @@ const LEARN_VIDEOS = [
 
 const LOGO = "/design-assets/805cd68e-4bc0-474c-9062-282704b82b24.svg";
 
-type View = "browse" | "category" | "buying" | "selling" | "product" | "account" | "search" | "cart" | "info" | "checkout" | "track";
+type View = "browse" | "category" | "buying" | "selling" | "product" | "account" | "search" | "cart" | "info" | "checkout" | "track" | "sell";
 
 // Root CSS custom properties, ported verbatim from the design wrapper (the
 // canvas-scaling hacks — zoom/125vw/125vh — are dropped so it renders 1:1).
@@ -111,7 +112,7 @@ export function MarketplaceApp() {
     setInfoSlug(slug);
     setView("info");
   }
-  const showSidebar = !["account", "cart", "info", "checkout", "track"].includes(view);
+  const showSidebar = !["account", "cart", "info", "checkout", "track", "sell"].includes(view);
   function toggleCond(key: string) {
     setConds((prev) => {
       const next = new Set(prev);
@@ -167,7 +168,7 @@ export function MarketplaceApp() {
           </div>
         </div>
         <div style={css("flex:1")} />
-        <div onClick={() => setView("selling")} style={css("font-size:14px;font-weight:700;color:var(--maroon);cursor:pointer;padding:0 6px;white-space:nowrap;flex:0 0 auto")}>Sell an item</div>
+        <div onClick={() => setView("sell")} style={css("font-size:14px;font-weight:700;color:var(--maroon);cursor:pointer;padding:0 6px;white-space:nowrap;flex:0 0 auto")}>Sell an item</div>
         <Hoverable title="Cart" onClick={() => setCartOpen(true)} styles="position:relative;width:40px;height:40px;flex:0 0 auto;border-radius:50%;background:var(--blueBg);display:flex;align-items:center;justify-content:center;cursor:pointer" hover="filter:brightness(.96)">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--blueInk)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <circle cx="9" cy="21" r="1.4" />
@@ -213,7 +214,7 @@ export function MarketplaceApp() {
           </div>
 
           {/* Create listing */}
-          <button onClick={() => setCreateOpen(true)} style={css("width:100%;background:var(--fbbtn);color:var(--fbblue);border:none;border-radius:8px;padding:12px;font-size:14.5px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px")}>
+          <button onClick={() => setView("sell")} style={css("width:100%;background:var(--fbbtn);color:var(--fbblue);border:none;border-radius:8px;padding:12px;font-size:14.5px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px")}>
             <Plus />Create new listing
           </button>
 
@@ -365,11 +366,12 @@ export function MarketplaceApp() {
             {view === "browse" && <BrowseView locCity={locCity} onOpenProduct={openProduct} />}
             {view === "category" && category && <CategoryView catName={category.name} categorySlug={category.slug} onOpenProduct={openProduct} />}
             {view === "buying" && <BuyingDashboard onBrowse={goBrowse} />}
-            {view === "selling" && <SellingDashboard onBrowse={goBrowse} onNew={() => setCreateOpen(true)} />}
+            {view === "selling" && <SellingDashboard onBrowse={goBrowse} onNew={() => setView("sell")} />}
             {view === "product" && product && <ProductPage item={product} onBack={goBrowse} onOpenCategory={(slug, name) => openCategory({ name, slug })} onMakeOffer={() => setOfferOpen(true)} />}
             {view === "search" && <SearchPage initialQuery={searchQuery} onOpenProduct={openProduct} />}
             {view === "account" && <AccountPage onBack={goBrowse} />}
             {view === "cart" && <CartPage onBrowse={goBrowse} onCheckout={() => setView("checkout")} onOpenProduct={openProduct} deliverTo={locCity} onChangeAddress={() => setLocOpen(true)} onRequestItem={() => setChatOpen(true)} />}
+            {view === "sell" && <SellPage onDone={goBrowse} />}
             {view === "checkout" && <CheckoutPage onBack={() => setView("cart")} onBrowse={goBrowse} onViewOrder={(id) => { setActiveOrderId(id); setView("track"); }} />}
             {view === "track" && <OrderTracking orderId={activeOrderId ?? undefined} onBack={goBrowse} onBrowse={goBrowse} />}
             {view === "info" && infoSlug && <InfoView slug={infoSlug} />}
