@@ -521,6 +521,12 @@ export function SellPage({ onDone }: { onDone?: () => void }) {
             </div>
           </div>
 
+          {/* Floor price — lowest the seller will accept (private) */}
+          <div>
+            <FieldLabel label="Floor price" help="The lowest price you'd accept. Never shown to buyers — offers at or above it can auto-accept." />
+            <input value={floorPrice} onChange={(e) => setFloorPrice(e.target.value)} inputMode="decimal" placeholder="$" style={css(FIELD)} />
+          </div>
+
           {/* Pickup */}
           <div>
             <FieldLabel label="Pickup address" help="Where we collect the item. Only shared with the delivery team." />

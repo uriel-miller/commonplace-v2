@@ -18,6 +18,8 @@ import { useCart } from "@/components/cart/CartProvider";
 import { SideCart } from "@/components/cart/SideCart";
 import { CartPage } from "@/components/cart/CartPage";
 import { SellPage } from "@/components/sell/SellPage";
+import { AddonPopup } from "@/components/cart/AddonPopup";
+import { isAddonListing } from "@/lib/addons";
 import { AccountPage } from "@/components/pages/account/AccountPage";
 import { SearchPage } from "@/components/pages/search/SearchPage";
 import { resolveInfoPage } from "@/components/pages/info";
@@ -60,6 +62,8 @@ export function MarketplaceApp() {
   const [offerOpen, setOfferOpen] = useState(false);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
+  const [addonOpen, setAddonOpen] = useState(false);
+  const addonShown = useRef(false);
   const cart = useCart();
   const prevCartCount = useRef(cart.count);
   const cartBaselineSet = useRef(false);
@@ -81,6 +85,17 @@ export function MarketplaceApp() {
     }
     prevCartCount.current = cart.count;
   }, [cart.count, cart.hydrated]);
+
+  // When the shopper lands in the cart with real items, offer category-specific
+  // add-ons (warranties + accessories) once per session.
+  useEffect(() => {
+    if (view !== "cart" || addonShown.current || !cart.hydrated) return;
+    const hasReal = cart.items.some((it) => !isAddonListing(it.listing));
+    if (!hasReal) return;
+    addonShown.current = true;
+    const t = setTimeout(() => setAddonOpen(true), 650);
+    return () => clearTimeout(t);
+  }, [view, cart.hydrated, cart.items]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [locOpen, setLocOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -388,6 +403,7 @@ export function MarketplaceApp() {
       {videoId && <VideoLightbox id={videoId} onClose={() => setVideoId(null)} />}
       <ConciergeChat open={chatOpen} onToggle={() => setChatOpen((v) => !v)} />
       <CartExitPopup enabled={cart.count > 0} onClose={() => {}} />
+      <AddonPopup open={addonOpen} categorySlugs={cart.items.filter((it) => !isAddonListing(it.listing)).map((it) => it.listing.categorySlug)} onClose={() => setAddonOpen(false)} />
     </div>
   );
 }
