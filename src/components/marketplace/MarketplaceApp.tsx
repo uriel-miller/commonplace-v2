@@ -852,6 +852,9 @@ function CreateModal({ onClose }: { onClose: () => void }) {
   const [catName, setCatName] = useState("");
   const [cond, setCond] = useState<string>("");
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
+  const [origPrice, setOrigPrice] = useState("");
+  const [floorPrice, setFloorPrice] = useState("");
+  const [pickup, setPickup] = useState("");
 
   const matched = CAT_GROUPS.flatMap((g) => g.items).find(
     (i) => i.name.toLowerCase() === catName.trim().toLowerCase(),
@@ -867,8 +870,9 @@ function CreateModal({ onClose }: { onClose: () => void }) {
     });
 
   const label = (f: Field) => (
-    <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>
-      {f.label}{f.required && <span style={css("color:var(--red)")}> *</span>}
+    <div style={css("margin-bottom:6px")}>
+      <div style={css("font-size:12.5px;font-weight:700")}>{f.label}{f.required && <span style={css("color:var(--red)")}> *</span>}</div>
+      {f.help && <div style={css("font-size:11px;color:var(--muted);line-height:1.4;margin-top:3px")}>{f.help}</div>}
     </div>
   );
 
@@ -967,6 +971,29 @@ function CreateModal({ onClose }: { onClose: () => void }) {
                 })}
               </div>
             </div>
+          </div>
+
+          {/* Pricing strategy — original + floor (private) */}
+          <div style={css("display:flex;gap:12px")}>
+            <div style={css("flex:1")}>
+              <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>What you originally paid <span style={css("color:var(--muted);font-weight:500")}>(optional)</span></div>
+              <input value={origPrice} onChange={(e) => setOrigPrice(e.target.value)} inputMode="numeric" placeholder="$0" style={css(FIELD_INPUT)} />
+            </div>
+            <div style={css("flex:1")}>
+              <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>Floor price <span style={css("color:var(--muted);font-weight:500")}>(private)</span></div>
+              <input value={floorPrice} onChange={(e) => setFloorPrice(e.target.value)} inputMode="numeric" placeholder="Lowest you'll accept" style={css(FIELD_INPUT)} />
+            </div>
+          </div>
+          <div style={css("font-size:11px;color:var(--muted);line-height:1.4;margin-top:-6px")}>Only Commonplace sees your floor price — we negotiate up from there on your behalf. Buyers never see it.</div>
+
+          {/* Pickup address (Google Maps) */}
+          <div>
+            <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>Pickup address <span style={css("color:var(--red)")}>*</span></div>
+            <div style={css("position:relative")}>
+              <span style={css("position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--maroon)")}><Pin size={16} stroke="var(--maroon)" /></span>
+              <input value={pickup} onChange={(e) => setPickup(e.target.value)} placeholder="Start typing your address…" style={sx(FIELD_INPUT, "padding-left:36px")} />
+            </div>
+            <div style={css("font-size:11px;color:var(--muted);line-height:1.4;margin-top:4px")}>Where we pick up. Address autocomplete + map pin use Google Maps (Places).</div>
           </div>
 
           {/* Photos + category-specific recommendations */}

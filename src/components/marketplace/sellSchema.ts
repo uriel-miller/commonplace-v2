@@ -45,8 +45,21 @@ export const KIND_SPECS: Record<string, SellSpec> = {
     title: "Peloton Bike",
     questions: [
       { key: "model", label: "Model", type: "select", options: ["Bike (Original 2020)", "Bike 2021", "Bike+ (Plus)"], required: true },
+      {
+        key: "screenGen",
+        label: "Screen generation",
+        type: "select",
+        options: [
+          "Gen 3 — model RB1VQ (fully supported)",
+          "Gen 2 — model RB1V1 (ages, still plays classes)",
+          "Gen 1 — QUARTZ/001 (bricked — no class streaming)",
+          "Not sure",
+        ],
+        help: "Check the sticker on the back of the screen. Gen 1 has an orange power button and a sticker ending in QUARTZ or 001 — Peloton cut off class streaming for it in June 2024. Gen 2 = model RB1V1. Gen 3 = model RB1VQ (baseline standard).",
+      },
       { key: "year", label: "Year purchased", type: "number", placeholder: "e.g. 2022" },
-      { key: "accessories", label: "Included accessories", type: "chips", options: ["Cycling shoes", "Weights", "Mat", "Heart-rate band", "Extra cleats"] },
+      { key: "rides", label: "Approx. total rides / usage", type: "select", options: ["0–50 (low)", "50–250", "250–1000", "1000+"] },
+      { key: "accessories", label: "Included accessories", type: "chips", options: ["Cycling shoes", "3 lb weights", "5 lb weights", "10 lb weights", "Mat", "Heart-rate band", "Extra cleats", "Water bottle", "Bike weights holder"] },
       { key: "powersOn", label: "Screen powers on & rotates (Bike+)", type: "radio", options: ["Yes", "No", "N/A"] },
       { key: "subscription", label: "Subscription status", type: "select", options: ["Active", "Cancelled", "Never activated"] },
       ISSUES,
@@ -86,6 +99,7 @@ export const KIND_SPECS: Record<string, SellSpec> = {
       { key: "folding", label: "Folds for storage", type: "radio", options: ["Yes", "No"] },
       { key: "capacity", label: "Max user weight", type: "text", placeholder: "e.g. 300 lb" },
       { key: "consoleWorks", label: "Console / incline working", type: "radio", options: ["Yes", "No", "Partly"] },
+      { key: "accessories", label: "Included accessories", type: "chips", options: ["Safety key", "Tablet holder", "Mat", "Owner's manual", "Lubricant"] },
       ISSUES,
     ],
     photoTips: [
@@ -293,6 +307,7 @@ export const KIND_SPECS: Record<string, SellSpec> = {
       { key: "battery", label: "Battery type & age (if electric)", type: "text", placeholder: "e.g. Lithium, 1 yr" },
       { key: "seats", label: "Seats", type: "select", options: ["2", "4", "6"] },
       { key: "streetLegal", label: "Street legal / LSV", type: "radio", options: ["Yes", "No"] },
+      { key: "accessories", label: "Included accessories", type: "chips", options: ["Charger", "Cover", "Windshield", "Extra seats / rear seat", "Cooler", "Lift kit", "Custom wheels", "Bluetooth / stereo"] },
       ISSUES,
     ],
     photoTips: [
