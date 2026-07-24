@@ -1,14 +1,16 @@
-// Category-specific cart add-ons (warranties + accessories) for the in-cart
-// upsell pop-up. Framework-agnostic and dependency-free so it is safe to import
-// from anywhere. Every export is fail-soft: bad input degrades to the generic
-// set or an empty list, never a throw.
+// Category-specific cart add-ons for the in-cart upsell pop-up. These are the
+// REAL Commonplace add-on products (titles + prices pulled from the live
+// WooCommerce catalog): the universal $39 Pre-Pickup Check-In, per-model
+// 12-month warranties, the Expert Hot Tub Inspection, and real accessories.
+//
+// Framework-agnostic and dependency-free. Every export is fail-soft: bad input
+// degrades to a sensible generic set or an empty list, never a throw.
 
 import type { Listing } from "./listing";
 
-export type AddonKind = "warranty" | "accessory";
+export type AddonKind = "service" | "warranty" | "accessory";
 
 export interface Addon {
-  /** Stable string key (also seeds the synthetic listing id). */
   key: string;
   title: string;
   blurb: string;
@@ -16,161 +18,115 @@ export interface Addon {
   kind: AddonKind;
 }
 
-/* ------------------------------------------------------------------ */
-/* Warranties — offered on every order                                */
-/* ------------------------------------------------------------------ */
-const WARRANTIES: Addon[] = [
-  { key: "warranty-1yr", kind: "warranty", title: "1-Year Protection Plan", blurb: "Parts & labor coverage for a full year after delivery.", priceCents: 9900 },
-  { key: "warranty-2yr", kind: "warranty", title: "2-Year Protection Plan", blurb: "Two years of coverage — most popular for big-ticket items.", priceCents: 17900 },
-  { key: "warranty-3yr", kind: "warranty", title: "3-Year Protection Plan", blurb: "Maximum peace of mind — three full years, fully transferable.", priceCents: 24900 },
-];
+const A = (key: string, kind: AddonKind, title: string, blurb: string, priceCents: number): Addon =>
+  ({ key, kind, title, blurb, priceCents });
 
 /* ------------------------------------------------------------------ */
-/* Accessories — keyed by category slug (with sensible family reuse)   */
+/* Services (real live products)                                      */
 /* ------------------------------------------------------------------ */
-const A = (key: string, title: string, blurb: string, priceCents: number): Addon => ({ key, title, blurb, priceCents, kind: "accessory" });
+const PRE_PICKUP = A("svc-pre-pickup", "service", "Pre-Pickup Check-In", "A quick pre-pickup verification of your item — so there are no surprises on delivery day.", 3900);
+const HOT_TUB_INSPECTION = A("svc-hottub-inspection", "service", "Expert Hot Tub Inspection & Report", "A specialist inspects the tub and sends you a full quality report before it ships.", 19500);
 
-const BIKE_ACC: Addon[] = [
-  A("acc-cycling-shoes", "Cycling Shoes", "Clip-in shoes sized to your fit, delivered with the bike.", 12500),
-  A("acc-bike-mat", "Protective Floor Mat", "Keeps your floors safe and the ride stable.", 5900),
-  A("acc-dumbbells", "Dumbbell Set", "Light hand weights for on-bike strength work.", 4500),
-  A("acc-hrm", "Heart-Rate Monitor", "Bluetooth armband for accurate zones.", 4900),
-];
-const TREAD_ACC: Addon[] = [
-  A("acc-tread-mat", "Treadmill Floor Mat", "Dampens noise and protects your floor.", 6900),
-  A("acc-lube-kit", "Belt Lubricant Kit", "Keeps the deck smooth and quiet for years.", 2900),
-];
-const ROW_ACC: Addon[] = [
-  A("acc-row-cushion", "Seat Cushion", "Extra padding for longer rows.", 3900),
-  A("acc-row-mat", "Protective Floor Mat", "Protects floors and catches sweat.", 5900),
-];
-const HOTTUB_ACC: Addon[] = [
-  A("acc-spa-cover", "Insulated Spa Cover", "Locks in heat and cuts energy costs.", 39900),
-  A("acc-spa-steps", "Spa Steps", "Safe, sturdy entry step.", 9900),
-  A("acc-spa-chem", "Chemical Starter Kit", "Everything to balance the water on day one.", 6900),
-  A("acc-cover-lifter", "Cover Lifter", "One-person open/close for the cover.", 14900),
-];
-const SAUNA_ACC: Addon[] = [
-  A("acc-sauna-backrest", "Ergonomic Backrest", "Comfort for longer sessions.", 7900),
-  A("acc-sauna-aroma", "Aromatherapy Kit", "Bucket, ladle, and essential oils.", 4900),
-];
-const PLUNGE_ACC: Addon[] = [
-  A("acc-plunge-chiller", "Water Chiller", "Holds your plunge at the perfect temperature.", 79900),
-  A("acc-plunge-lid", "Insulated Lid", "Keeps it cold and clean between plunges.", 12900),
-];
-const GOLF_ACC: Addon[] = [
-  A("acc-cart-cover", "Weatherproof Enclosure", "Full cover for rain and storage.", 18900),
-  A("acc-cart-charger", "Fast Charger", "Faster, safer charging.", 24900),
-  A("acc-cart-windshield", "Windshield", "Fold-down windshield for the front.", 13900),
-];
-const GYM_ACC: Addon[] = [
-  A("acc-gym-mat", "Protective Floor Mat", "Protects floors under heavy equipment.", 7900),
-  A("acc-gym-attach", "Attachment Kit", "Extra handles and bars for more exercises.", 8900),
-];
-const MASSAGE_ACC: Addon[] = [
-  A("acc-chair-cover", "Chair Cover", "Keeps your massage chair dust-free.", 5900),
-];
+/* ------------------------------------------------------------------ */
+/* Warranties (real 12-month prices, per model)                       */
+/* ------------------------------------------------------------------ */
+const warranty = (key: string, title: string, priceCents: number): Addon =>
+  A(key, "warranty", title, "Full parts & labor coverage for 12 months after delivery.", priceCents);
 
-/** Slug → accessory list. Vehicle/wellness/fitness families grouped. */
-const BY_SLUG: Record<string, Addon[]> = {
-  "peloton-bike-2nd-gen": BIKE_ACC,
-  "peloton-bike-plus": BIKE_ACC,
-  "peloton-bike-3rd-gen": BIKE_ACC,
-  "spin-bike": BIKE_ACC,
-  "indoor-bikes": BIKE_ACC,
-  "assault-fitness-bike": BIKE_ACC,
-  "peloton-tread": TREAD_ACC,
-  "peloton-tread-plus": TREAD_ACC,
-  "treadmills": TREAD_ACC,
-  "nordictrack-treadmill": TREAD_ACC,
-  "proform-treadmill": TREAD_ACC,
-  "elliptical": TREAD_ACC,
-  "rower": ROW_ACC,
-  "peloton-row": ROW_ACC,
-  "hydrow-pro-rowing-machine": ROW_ACC,
-  "tonal": GYM_ACC,
-  "home-gym": GYM_ACC,
-  "functional-trainer": GYM_ACC,
-  "smith-machine": GYM_ACC,
-  "reformer": GYM_ACC,
-  "hot-tub": HOTTUB_ACC,
-  "swim-spa": HOTTUB_ACC,
-  "jacuzzi": HOTTUB_ACC,
-  "hot-spring": HOTTUB_ACC,
-  "sauna": SAUNA_ACC,
-  "infrared-sauna": SAUNA_ACC,
-  "cold-plunge": PLUNGE_ACC,
-  "float-pod": PLUNGE_ACC,
-  "massage-chair": MASSAGE_ACC,
-  "golf-carts": GOLF_ACC,
-  "atv": GOLF_ACC,
-  "rv-motorhome": GOLF_ACC,
-};
+const W_BIKE = warranty("war-peloton-bike", "Peloton Bike 12-Month Warranty", 13900);
+const W_BIKE_PLUS = warranty("war-peloton-bike-plus", "Peloton Bike+ 12-Month Warranty", 21900);
+const W_TREAD = warranty("war-peloton-tread", "Peloton Tread 12-Month Warranty", 26000);
+const W_TREAD_PLUS = warranty("war-peloton-tread-plus", "Peloton Tread+ 12-Month Warranty", 69900);
+const W_ROW = warranty("war-peloton-row", "Peloton Row 12-Month Warranty", 52000);
+const W_HYDROW = warranty("war-hydrow", "Hydrow Pro 12-Month Warranty", 18000);
+const W_GENERIC = warranty("war-generic", "12-Month Protection Plan", 14900);
 
-const GENERIC_ACC: Addon[] = [
-  A("acc-floor-protection", "Floor Protection", "Protective pads and mats installed on delivery.", 3900),
-  A("acc-priority-setup", "Priority Setup", "Front-of-line white-glove assembly and placement.", 5900),
+/* ------------------------------------------------------------------ */
+/* Accessories (real live products)                                   */
+/* ------------------------------------------------------------------ */
+const acc = (key: string, title: string, blurb: string, priceCents: number): Addon => A(key, "accessory", title, blurb, priceCents);
+
+const SHOES = acc("acc-peloton-shoes", "Peloton Bike Shoes", "Clip-in cycling shoes sized to your fit, delivered with the bike.", 7900);
+const SEAT = acc("acc-peloton-seat", "Cushioned Seat", "A comfort seat for longer rides.", 4900);
+const PHONE = acc("acc-peloton-phone", "Phone Holder", "Keep your phone in view while you ride.", 4900);
+const WEIGHTS = acc("acc-peloton-weights", "Peloton Weights", "Light hand weights for on-bike strength work.", 2900);
+const BIKE_FAN = acc("acc-bike-fan", "Bike Fan", "Stay cool through every ride.", 3900);
+const MAT = acc("acc-exercise-mat", "Exercise Mat", "Protects your floor and steadies the frame.", 4900);
+const SWIVEL = acc("acc-swivel-kit", "Bike Swivel Kit", "Rotate the bike to follow floor workouts (Bike gens 1-3).", 6900);
+const DUMBBELLS = acc("acc-dumbbells", "Adjustable Dumbbell Set", "Space-saving adjustable hand weights.", 7999);
+const TREAD_KEY = acc("acc-tread-key", "Tread Safety Key", "A spare magnetic safety key.", 4800);
+const WALK_DESK = acc("acc-walk-desk", "Walking Desk Attachment", "Laptop, tablet & phone holder for the Tread+.", 19900);
+const ROW_FAN = acc("acc-row-fan", "Row Fan", "Airflow for longer rows.", 7999);
+
+const BIKE_ACC = [SHOES, SEAT, PHONE, WEIGHTS, BIKE_FAN, MAT, SWIVEL, DUMBBELLS];
+
+/* ------------------------------------------------------------------ */
+/* Category resolution (keyword rules over slug + name, order matters) */
+/* ------------------------------------------------------------------ */
+interface Bundle { warranty: Addon; accessories: Addon[]; services?: Addon[] }
+
+const RULES: Array<[RegExp, Bundle]> = [
+  [/peloton[^]*tread[^]*(\+|plus)|tread[^]*(\+|plus)[^]*peloton/i, { warranty: W_TREAD_PLUS, accessories: [WALK_DESK, TREAD_KEY, MAT] }],
+  [/peloton[^]*tread|tread[^]*peloton/i, { warranty: W_TREAD, accessories: [TREAD_KEY, MAT] }],
+  [/peloton[^]*row|row[^]*peloton/i, { warranty: W_ROW, accessories: [ROW_FAN, MAT] }],
+  [/hydrow/i, { warranty: W_HYDROW, accessories: [ROW_FAN, MAT] }],
+  [/(peloton[^]*(bike ?\+|bike ?plus)|bike ?\+|bike ?plus)/i, { warranty: W_BIKE_PLUS, accessories: BIKE_ACC }],
+  [/peloton[^]*bike|\bpeloton\b|spin ?bike|indoor ?(cycling )?bike/i, { warranty: W_BIKE, accessories: BIKE_ACC }],
+  [/tread ?mill|nordic ?track|pro ?form/i, { warranty: W_GENERIC, accessories: [TREAD_KEY, MAT] }],
+  [/rower|rowing/i, { warranty: W_GENERIC, accessories: [ROW_FAN, MAT] }],
+  [/hot ?tub|jacuzzi|hot ?spring|swim ?spa|\bspa\b|sauna|cold ?plunge|plunge|float ?pod/i, { warranty: W_GENERIC, accessories: [], services: [HOT_TUB_INSPECTION] }],
+  [/elliptical|tonal|home ?gym|functional|smith|dumbbell|weight|assault|stairmaster|bowflex/i, { warranty: W_GENERIC, accessories: [MAT, DUMBBELLS] }],
 ];
-
-// Keyword fallback (order matters: more specific first) — matches real
-// WooCommerce category slugs/names that don't line up with our exact keys.
-const KEYWORD_ACC: Array<[RegExp, Addon[]]> = [
-  [/tread|elliptical|nordic|proform/, TREAD_ACC],
-  [/row|hydrow/, ROW_ACC],
-  [/swim.?spa/, HOTTUB_ACC],
-  [/hot.?tub|jacuzzi|hot.?spring|\bspa\b/, HOTTUB_ACC],
-  [/infrared|sauna/, SAUNA_ACC],
-  [/plunge|cold|float.?pod/, PLUNGE_ACC],
-  [/massage/, MASSAGE_ACC],
-  [/golf/, GOLF_ACC],
-  [/\batv\b|quad|four.?wheeler|\brv\b|motorhome|camper/, GOLF_ACC],
-  [/tonal|home.?gym|functional|smith|reformer|\bgym\b|rack|trainer/, GYM_ACC],
-  [/peloton|bike|spin|cycl|indoor/, BIKE_ACC],
-];
-
-/** Resolve accessories for one category token (slug and/or name). */
-function accForToken(token: string): Addon[] | null {
-  const exact = BY_SLUG[token];
-  if (exact) return exact;
-  const s = token.toLowerCase();
-  for (const [re, list] of KEYWORD_ACC) if (re.test(s)) return list;
-  return null;
-}
 
 /**
- * Return the add-ons to offer for a set of cart category slugs: every warranty
- * tier, plus the union of accessories for those categories (deduped by key).
- * Falls back to a generic accessory set when nothing matches. Never throws.
+ * Add-ons to offer for a set of cart category tokens (slug and/or name). Always
+ * includes the universal Pre-Pickup Check-In service; adds each matched
+ * category's warranty + accessories (+ hot-tub inspection where relevant), all
+ * deduped by key. Falls back to a generic warranty + mat when nothing matches.
+ * Never throws.
  */
-export function addonsForCategories(slugs: Array<string | null | undefined>): Addon[] {
+export function addonsForCategories(tokens: Array<string | null | undefined>): Addon[] {
   try {
     const seen = new Set<string>();
+    const services: Addon[] = [];
+    const warranties: Addon[] = [];
     const accessories: Addon[] = [];
+    const push = (list: Addon[], a: Addon) => { if (!seen.has(a.key)) { seen.add(a.key); list.push(a); } };
+
+    push(services, PRE_PICKUP); // universal
+
     let matched = false;
-    for (const slug of slugs) {
-      const list = slug ? accForToken(String(slug)) : null;
-      if (!list) continue;
+    for (const token of tokens) {
+      if (!token) continue;
+      const s = String(token);
+      const hit = RULES.find(([re]) => re.test(s));
+      if (!hit) continue;
       matched = true;
-      for (const a of list) {
-        if (!seen.has(a.key)) { seen.add(a.key); accessories.push(a); }
-      }
+      const b = hit[1];
+      push(warranties, b.warranty);
+      for (const a of b.accessories) push(accessories, a);
+      for (const a of b.services ?? []) push(services, a);
     }
-    if (!matched) accessories.push(...GENERIC_ACC);
-    return [...WARRANTIES, ...accessories];
+    if (!matched) { push(warranties, W_GENERIC); push(accessories, MAT); }
+
+    // Order in the pop-up: services → protection → accessories.
+    return [...services, ...warranties, ...accessories];
   } catch {
-    return [...WARRANTIES];
+    return [PRE_PICKUP, W_GENERIC];
   }
 }
 
-/** Deterministic non-colliding negative id for a synthetic add-on listing. */
+/* ------------------------------------------------------------------ */
+/* Synthetic-listing helpers                                          */
+/* ------------------------------------------------------------------ */
 function addonId(key: string): number {
   let h = 0;
   for (let i = 0; i < key.length; i++) h = (Math.imul(h, 31) + key.charCodeAt(i)) | 0;
   return -Math.abs(h) - 1000; // negative → never collides with real product ids
 }
 
-/** Wrap an add-on as a minimal Listing so it drops into the existing cart. */
 export function addonToListing(a: Addon): Listing {
+  const label = a.kind === "warranty" ? "Protection Plan" : a.kind === "service" ? "Service" : "Add-on";
   return {
     id: addonId(a.key),
     slug: a.key,
@@ -178,7 +134,7 @@ export function addonToListing(a: Addon): Listing {
     priceCents: a.priceCents,
     retailCents: null,
     savingsPct: null,
-    categoryName: a.kind === "warranty" ? "Protection Plan" : "Add-on",
+    categoryName: label,
     categorySlug: "addon",
     location: null,
     condition: null,
@@ -193,7 +149,6 @@ export function addonToListing(a: Addon): Listing {
   };
 }
 
-/** True when a cart line is one of our synthetic add-ons (to exclude from triggers). */
 export function isAddonListing(l: { categorySlug?: string | null }): boolean {
   return l?.categorySlug === "addon";
 }

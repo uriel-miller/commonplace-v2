@@ -193,7 +193,7 @@ export function MarketplaceApp() {
         </div>
         <div style={css("flex:1")} />
         <div onClick={() => setView("sell")} style={css("font-size:14px;font-weight:700;color:var(--maroon);cursor:pointer;padding:0 6px;white-space:nowrap;flex:0 0 auto")}>Sell an item</div>
-        <Hoverable title="Cart" onClick={() => setCartOpen(true)} styles="position:relative;width:40px;height:40px;flex:0 0 auto;border-radius:50%;background:var(--blueBg);display:flex;align-items:center;justify-content:center;cursor:pointer" hover="filter:brightness(.96)">
+        <Hoverable title="Cart" onClick={() => setView("cart")} styles="position:relative;width:40px;height:40px;flex:0 0 auto;border-radius:50%;background:var(--blueBg);display:flex;align-items:center;justify-content:center;cursor:pointer" hover="filter:brightness(.96)">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--blueInk)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <circle cx="9" cy="21" r="1.4" />
             <circle cx="18" cy="21" r="1.4" />
@@ -662,7 +662,7 @@ function VideoLightbox({ id, onClose }: { id: string; onClose: () => void }) {
 function LocationModal({ city, onCity, onClose }: { city: string; onCity: (v: string) => void; onClose: () => void }) {
   return (
     <div style={css("position:fixed;inset:0;background:rgba(25,12,18,.55);display:flex;align-items:center;justify-content:center;z-index:200;animation:fade .15s ease both")}>
-      <div style={css("width:440px;max-width:92vw;background:var(--cream);border-radius:20px;box-shadow:0 30px 70px rgba(0,0,0,.4);padding:26px;animation:pop .2s ease both")}>
+      <div style={css("width:440px;max-width:92vw;background:var(--paper);border-radius:20px;box-shadow:0 30px 70px rgba(0,0,0,.4);padding:26px;animation:pop .2s ease both")}>
         <div style={css("display:flex;align-items:center;justify-content:space-between;margin-bottom:18px")}>
           <div style={css("font-family:'Reckless','Newsreader',serif;font-size:24px;font-weight:600")}>Select your location</div>
           <div onClick={onClose} style={css("width:32px;height:32px;border-radius:50%;background:rgba(0,0,0,.05);display:flex;align-items:center;justify-content:center;cursor:pointer")}><Close /></div>
@@ -786,7 +786,7 @@ function CreateModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div style={css("position:fixed;inset:0;background:rgba(25,12,18,.55);display:flex;align-items:center;justify-content:center;z-index:200;animation:fade .15s ease both")}>
-      <div style={css("width:540px;max-width:94vw;max-height:90vh;overflow-y:auto;background:var(--cream);border-radius:20px;box-shadow:0 30px 70px rgba(0,0,0,.4);padding:26px")}>
+      <div style={css("width:540px;max-width:94vw;max-height:90vh;overflow-y:auto;background:var(--paper);border-radius:20px;box-shadow:0 30px 70px rgba(0,0,0,.4);padding:26px")}>
         <div style={css("display:flex;align-items:center;justify-content:space-between;margin-bottom:6px")}>
           <div style={css("font-family:'Reckless','Newsreader',serif;font-size:24px;font-weight:600")}>Create a listing</div>
           <div onClick={onClose} style={css("width:32px;height:32px;border-radius:50%;background:rgba(0,0,0,.05);display:flex;align-items:center;justify-content:center;cursor:pointer")}><Close /></div>

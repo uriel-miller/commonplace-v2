@@ -30,6 +30,7 @@ export function AddonPopup({
 
   let addons: Addon[] = [];
   try { addons = addonsForCategories(categorySlugs); } catch { addons = []; }
+  const services = addons.filter((a) => a.kind === "service");
   const warranties = addons.filter((a) => a.kind === "warranty");
   const accessories = addons.filter((a) => a.kind === "accessory");
 
@@ -81,6 +82,16 @@ export function AddonPopup({
         </div>
 
         <div style={css("padding:18px 20px 8px")}>
+          {services.length > 0 && (
+            <div style={css("margin-bottom:20px")}>
+              <div style={css("font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:10px")}>Recommended services</div>
+              <div style={css("display:flex;flex-direction:column;gap:10px")}>
+                {services.map((s) => (
+                  <Card key={s.key} addon={s} added={added.has(s.key)} onToggle={() => toggle(s)} />
+                ))}
+              </div>
+            </div>
+          )}
           {warranties.length > 0 && (
             <div style={css("margin-bottom:20px")}>
               <div style={css("font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:10px")}>Protection plans</div>
@@ -124,15 +135,19 @@ export function AddonPopup({
 
 /* --------------------- Shopify-style product card --------------------- */
 function Card({ addon, added, onToggle }: { addon: Addon; added: boolean; onToggle: () => void }) {
-  const warranty = addon.kind === "warranty";
+  const tile =
+    addon.kind === "warranty" ? { background: "var(--tint)", color: "var(--maroon)" }
+    : addon.kind === "service" ? { background: "var(--greenBg)", color: "var(--green)" }
+    : { background: "var(--blueBg)", color: "var(--blueInk)" };
   return (
     <div style={sx("display:flex;align-items:center;gap:13px;padding:12px;border-radius:14px;transition:border-color .14s",
       added ? { border: "1.5px solid var(--maroon)", background: "#fbf3f7" } : { border: "1px solid var(--line)", background: "var(--paper)" })}>
       {/* Thumbnail tile */}
-      <div style={sx("width:54px;height:54px;flex:0 0 auto;border-radius:11px;display:flex;align-items:center;justify-content:center",
-        warranty ? { background: "var(--tint)", color: "var(--maroon)" } : { background: "var(--blueBg)", color: "var(--blueInk)" })}>
-        {warranty ? (
+      <div style={sx("width:54px;height:54px;flex:0 0 auto;border-radius:11px;display:flex;align-items:center;justify-content:center", tile)}>
+        {addon.kind === "warranty" ? (
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></svg>
+        ) : addon.kind === "service" ? (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
         ) : (
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round"><path d="M20.6 8.4 12 3 3.4 8.4 12 13.8l8.6-5.4Z" /><path d="M3.4 8.4V15.6L12 21l8.6-5.4V8.4" /><path d="M12 13.8V21" /></svg>
         )}

@@ -66,7 +66,7 @@ const COMPARE_ROWS: readonly { label: string; cells: [boolean, boolean, boolean,
 
 const STATS: readonly [string, string][] = [
   ["12,000+", "items delivered"],
-  ["4.9★", "average buyer rating"],
+  ["5.0★", "average buyer rating"],
   ["50", "states served"],
   ["$1", "to reserve anything"],
 ];

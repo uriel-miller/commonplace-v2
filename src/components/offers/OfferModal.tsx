@@ -26,7 +26,7 @@ const OVERLAY = css(
   "position:fixed;inset:0;background:rgba(20,16,14,0.55);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px",
 );
 const CARD = css(
-  "background:var(--cream);border:1px solid var(--line);border-radius:16px;max-width:440px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,0.28);overflow:hidden",
+  "background:var(--paper);border:1px solid var(--line);border-radius:16px;max-width:440px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,0.28);overflow:hidden",
 );
 const HEADER = css(
   "display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px 12px",
