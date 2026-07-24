@@ -22,7 +22,7 @@ import { submitListing, previewPayout } from "@/lib/createListing";
 
 const PLUM = "#630E3D";
 const FIELD =
-  "width:100%;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:12px 13px;font-size:14.5px;color:var(--ink);outline:none;font-family:inherit;box-sizing:border-box";
+  "width:100%;border:1.5px solid #E7DDCF;background:#fff;border-radius:12px;padding:13px 15px;font-size:15px;color:var(--ink);outline:none;font-family:inherit;box-sizing:border-box;transition:border-color .15s";
 
 const ALL_CATS = CAT_GROUPS.flatMap((g) => g.items);
 const DRAFT_KEY = "cp_sell_drafts_v1";

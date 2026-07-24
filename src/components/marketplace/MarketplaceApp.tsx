@@ -76,26 +76,41 @@ function matchesFilter(it: Listing, f: FilterState): boolean {
   return true;
 }
 
-/* Per-category attribute filters (matched by keyword on slug+name); each option
-   is a keyword we look for in the listing title. Order: most specific first. */
-const CATEGORY_ATTRS: Array<{ match: RegExp; groups: { label: string; options: string[] }[] }> = [
-  { match: /peloton[^]*tread|tread ?mill|nordic ?track|pro ?form/i, groups: [{ label: "Model", options: ["Tread+", "Tread"] }, { label: "Year", options: ["2019", "2020", "2021", "2022", "2023", "2024"] }] },
-  { match: /peloton[^]*row|rower|hydrow|ergatta/i, groups: [{ label: "Brand", options: ["Peloton", "Hydrow", "Ergatta", "Concept2"] }] },
-  { match: /peloton[^]*bike|spin ?bike|indoor ?bike|\bbike\b/i, groups: [{ label: "Model", options: ["Bike+", "Bike Plus", "Bike"] }, { label: "Year", options: ["2019", "2020", "2021", "2022", "2023", "2024"] }] },
-  { match: /swim ?spa/i, groups: [{ label: "Feature", options: ["Saltwater", "Bluetooth"] }] },
-  { match: /hot ?tub|jacuzzi|hot ?spring|\bspa\b/i, groups: [{ label: "Seats", options: ["2 person", "3 person", "4 person", "5 person", "6 person", "7 person", "8 person"] }, { label: "Feature", options: ["Saltwater", "Bluetooth"] }] },
-  { match: /infrared ?sauna|sauna/i, groups: [{ label: "Type", options: ["Infrared", "Traditional"] }, { label: "Capacity", options: ["1 person", "2 person", "3 person", "4 person"] }] },
-  { match: /cold ?plunge|plunge|ice ?bath/i, groups: [{ label: "Feature", options: ["Chiller", "Filter"] }] },
-  { match: /golf ?cart/i, groups: [{ label: "Seats", options: ["2 seat", "4 seat", "6 seat"] }, { label: "Power", options: ["Electric", "Gas", "Lithium"] }] },
-  { match: /massage ?chair/i, groups: [{ label: "Feature", options: ["Zero Gravity", "Heated", "Full Body"] }] },
-  { match: /tonal|home ?gym|functional ?trainer|smith ?machine|bowflex/i, groups: [{ label: "Feature", options: ["Digital", "Smart", "Full Accessories"] }] },
-  { match: /\bcar\b|truck|\bsuv\b|vehicle|scooter|vespa|\batv\b|motorcycle|moped/i, groups: [{ label: "Year", options: ["2016", "2017", "2018", "2019", "2020", "2021", "2022", "2023", "2024"] }] },
+/* Per-category filter config (matched by keyword on slug+name): price-range
+   chips + attribute groups, exactly like the design's numbered filter sections.
+   Each attribute option is a keyword matched against the listing title. */
+interface AttrGroup { label: string; options: string[] }
+interface PriceRange { label: string; min: number; max: number } // max 0 = no upper bound
+interface CatFilter { priceRanges: PriceRange[]; groups: AttrGroup[] }
+
+const P_HIGH: PriceRange[] = [{ label: "Under $5k", min: 0, max: 5000 }, { label: "$5k–$7.5k", min: 5000, max: 7500 }, { label: "$7.5k–$10k", min: 7500, max: 10000 }, { label: "$10k+", min: 10000, max: 0 }];
+const P_MID: PriceRange[] = [{ label: "Under $1k", min: 0, max: 1000 }, { label: "$1k–$3k", min: 1000, max: 3000 }, { label: "$3k–$6k", min: 3000, max: 6000 }, { label: "$6k+", min: 6000, max: 0 }];
+const P_LOW: PriceRange[] = [{ label: "Under $500", min: 0, max: 500 }, { label: "$500–$1.5k", min: 500, max: 1500 }, { label: "$1.5k–$3k", min: 1500, max: 3000 }, { label: "$3k+", min: 3000, max: 0 }];
+
+const CAT_FILTERS: Array<{ match: RegExp; config: CatFilter }> = [
+  { match: /golf ?cart/i, config: { priceRanges: P_HIGH, groups: [{ label: "Gas or electric", options: ["Gas", "Electric"] }, { label: "Seats", options: ["2-seater", "4-seater", "6-seater"] }, { label: "Style", options: ["Lifted", "Street legal", "Standard"] }] } },
+  { match: /peloton[^]*tread|tread ?mill|nordic ?track|pro ?form/i, config: { priceRanges: P_MID, groups: [{ label: "Model", options: ["Tread+", "Tread"] }, { label: "Year", options: ["2020", "2021", "2022", "2023", "2024"] }] } },
+  { match: /peloton[^]*row|rower|hydrow|ergatta/i, config: { priceRanges: P_LOW, groups: [{ label: "Brand", options: ["Peloton", "Hydrow", "Ergatta", "Concept2"] }] } },
+  { match: /peloton[^]*bike|spin ?bike|indoor ?bike|\bbike\b/i, config: { priceRanges: P_LOW, groups: [{ label: "Model", options: ["Bike+", "Bike"] }, { label: "Year", options: ["2019", "2020", "2021", "2022", "2023", "2024"] }] } },
+  { match: /swim ?spa/i, config: { priceRanges: P_HIGH, groups: [{ label: "Feature", options: ["Saltwater", "Bluetooth", "Current"] }] } },
+  { match: /hot ?tub|jacuzzi|hot ?spring|\bspa\b/i, config: { priceRanges: P_HIGH, groups: [{ label: "Seats", options: ["2 person", "4 person", "6 person", "8 person"] }, { label: "Feature", options: ["Saltwater", "Bluetooth", "Lounger"] }] } },
+  { match: /infrared ?sauna|sauna/i, config: { priceRanges: P_MID, groups: [{ label: "Type", options: ["Infrared", "Traditional"] }, { label: "Capacity", options: ["1 person", "2 person", "3 person", "4 person"] }] } },
+  { match: /cold ?plunge|plunge|ice ?bath/i, config: { priceRanges: P_MID, groups: [{ label: "Feature", options: ["Chiller", "Filter"] }] } },
+  { match: /massage ?chair/i, config: { priceRanges: P_MID, groups: [{ label: "Feature", options: ["Zero Gravity", "Heated", "Full Body"] }] } },
+  { match: /tonal|home ?gym|functional ?trainer|smith ?machine|bowflex/i, config: { priceRanges: P_MID, groups: [{ label: "Feature", options: ["Digital", "Smart", "Full Accessories"] }] } },
+  { match: /refrigerator|\bwasher|\bdryer|dishwasher|\brange|\boven|appliance|freezer|stove/i, config: { priceRanges: P_LOW, groups: [{ label: "Fuel", options: ["Gas", "Electric"] }, { label: "Finish", options: ["Stainless", "White", "Black"] }] } },
+  { match: /sofa|sectional|couch|dining|coffee ?table|\btable|\bdesk|dresser|bookshelf|furniture|recliner|lamp/i, config: { priceRanges: P_LOW, groups: [{ label: "Material", options: ["Leather", "Fabric", "Wood"] }] } },
+  { match: /\bcar\b|truck|\bsuv\b|vehicle|scooter|vespa|\batv\b|motorcycle|moped/i, config: { priceRanges: P_MID, groups: [{ label: "Year", options: ["2018", "2019", "2020", "2021", "2022", "2023", "2024"] }] } },
 ];
 
-function attrsForCategory(slug: string, name: string): { label: string; options: string[] }[] {
+function filterConfigFor(slug: string, name: string): CatFilter {
   const s = (slug + " " + name).toLowerCase();
-  const hit = CATEGORY_ATTRS.find((c) => c.match.test(s));
-  return hit ? hit.groups : [];
+  const hit = CAT_FILTERS.find((c) => c.match.test(s));
+  return hit ? hit.config : { priceRanges: P_LOW, groups: [] };
+}
+
+function attrsForCategory(slug: string, name: string): AttrGroup[] {
+  return filterConfigFor(slug, name).groups;
 }
 
 export function MarketplaceApp() {
@@ -487,7 +502,7 @@ export function MarketplaceApp() {
         )}
 
         {/* ============================ MAIN ============================ */}
-        <main style={css(showSidebar ? "flex:1;overflow-y:auto;padding:20px 22px 56px 7px" : "flex:1;overflow-y:auto;padding:0")}>
+        <main style={css(showSidebar ? "flex:1;overflow-y:auto;padding:16px 12px 56px 8px" : "flex:1;overflow-y:auto;padding:0")}>
           <ErrorBoundary onReset={goBrowse}>
             {view === "browse" && <BrowseView locCity={locCity} onOpenProduct={openProduct} filter={filter} />}
             {view === "category" && category && <CategoryView catName={category.name} categorySlug={category.slug} onOpenProduct={openProduct} filter={filter} />}
