@@ -93,7 +93,7 @@ const VIDEOS: readonly { title: string; id: string }[] = [
 ];
 
 /* ================================================================== */
-export function ProductExtras({ item }: { item: Listing }) {
+export function ProductExtras({ item, onPlayVideo }: { item: Listing; onPlayVideo?: (id: string) => void }) {
   const [openFaq, setOpenFaq] = useState<number>(0);
   const [ask, setAsk] = useState("");
   const [asked, setAsked] = useState(false);
@@ -104,6 +104,8 @@ export function ProductExtras({ item }: { item: Listing }) {
   void (Number.isFinite(item?.reviewCount) ? item.reviewCount : 0);
 
   function openVideo(id: string) {
+    // Prefer the in-page lightbox pop-up; fall back to opening YouTube.
+    if (onPlayVideo) { try { onPlayVideo(id); return; } catch { /* fall through */ } }
     try {
       window.open("https://www.youtube.com/watch?v=" + id, "_blank", "noopener");
     } catch {
@@ -267,7 +269,7 @@ export function ProductExtras({ item }: { item: Listing }) {
       {/* ---------------- 6. Ask the Seller ---------------- */}
       <section style={css("margin-top:48px")}>
         <h2 style={css(HEADING)}>Ask the Seller</h2>
-        <div style={css("background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:20px;max-width:760px")}>
+        <div style={css("background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:20px")}>
           <div style={css("font-size:12.5px;font-weight:700;color:var(--muted);letter-spacing:.02em;margin-bottom:6px")}>0 Questions</div>
           <p style={css("font-size:13.5px;color:var(--ink);line-height:1.55;margin:0 0 14px")}>Be the first to ask a question about this item — our team answers fast.</p>
           <div style={css("display:flex;gap:10px;flex-wrap:wrap")} data-pe-ask>

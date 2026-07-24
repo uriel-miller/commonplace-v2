@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { css, sx, Hoverable } from "@/lib/design/css";
 import {
   CAT_GROUPS,
@@ -53,7 +53,7 @@ type View = "browse" | "category" | "buying" | "selling" | "product" | "account"
 // Root CSS custom properties, ported verbatim from the design wrapper (the
 // canvas-scaling hacks — zoom/125vw/125vh — are dropped so it renders 1:1).
 const ROOT_VARS =
-  "--cream:#FBF8F4;--paper:#ffffff;--ink:#19171C;--muted:#7C7069;--line:#ECE4D8;--maroon:#620E3B;--maroon2:#7A2740;--tint:#F4E7EA;--putty:#f6f1ea;--gold:#C98A22;--blue:#7FA8D9;--purple:#9C88D6;--yellow:#E7C24B;--red:#C15540;--green:#3B7A57;--greenBg:#E1F0E7;--blueBg:#E4EDF8;--blueInk:#2C5B8A;--fbblue:#1877F2;--fbbtn:#E7F3FF;--yellowBg:#F7EDCE";
+  "--cream:#FDFBF9;--paper:#ffffff;--ink:#19171C;--muted:#7C7069;--line:#ECE4D8;--maroon:#620E3B;--maroon2:#7A2740;--tint:#F4E7EA;--putty:#f6f1ea;--gold:#C98A22;--blue:#7FA8D9;--purple:#9C88D6;--yellow:#E7C24B;--red:#C15540;--green:#3B7A57;--greenBg:#E1F0E7;--blueBg:#E4EDF8;--blueInk:#2C5B8A;--fbblue:#1877F2;--fbbtn:#E7F3FF;--yellowBg:#F7EDCE";
 
 export function MarketplaceApp() {
   const [view, setView] = useState<View>("browse");
@@ -391,7 +391,7 @@ export function MarketplaceApp() {
             {view === "category" && category && <CategoryView catName={category.name} categorySlug={category.slug} onOpenProduct={openProduct} />}
             {view === "buying" && <BuyingDashboard onBrowse={goBrowse} />}
             {view === "selling" && <SellingDashboard onBrowse={goBrowse} onNew={() => setView("sell")} />}
-            {view === "product" && product && <ProductPage item={product} onBack={goBrowse} onOpenCategory={(slug, name) => openCategory({ name, slug })} onMakeOffer={() => setOfferOpen(true)} onOpenProduct={openProduct} onRequestItem={() => openRequest(product.title)} onNotify={() => openNotify(product.title)} />}
+            {view === "product" && product && <ProductPage item={product} onBack={goBrowse} onOpenCategory={(slug, name) => openCategory({ name, slug })} onMakeOffer={() => setOfferOpen(true)} onOpenProduct={openProduct} onRequestItem={() => openRequest(product.title)} onNotify={() => openNotify(product.title)} onPlayVideo={(id) => setVideoId(id)} />}
             {view === "search" && <SearchPage initialQuery={searchQuery} onOpenProduct={openProduct} />}
             {view === "account" && <AccountPage onBack={goBrowse} />}
             {view === "cart" && <CartPage onBrowse={goBrowse} onCheckout={() => setView("checkout")} onOpenProduct={openProduct} deliverTo={locCity} onChangeAddress={() => setLocOpen(true)} onRequestItem={() => openRequest(cart.items[0]?.listing.title)} />}
@@ -525,20 +525,53 @@ function BrowseView({ locCity, onOpenProduct }: { locCity: string; onOpenProduct
   const [loading, setLoading] = useState(true);
   const [chip, setChip] = useState("");
   const [sort, setSort] = useState("recommended");
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinel = useRef<HTMLDivElement>(null);
+  const PER = 24;
 
+  // Initial load / reset when filter, sort, or city changes.
   useEffect(() => {
     let alive = true;
-    setLoading(true);
-    fetchListings({ perPage: 20, category: chip || undefined, orderby: sort, city: locCity }).then((d) => {
-      if (alive) {
+    setLoading(true); setPage(1); setHasMore(true);
+    fetchListings({ perPage: PER, page: 1, category: chip || undefined, orderby: sort, city: locCity })
+      .then((d) => {
+        if (!alive) return;
         setItems(d.items);
+        setHasMore(d.items.length >= PER && (d.totalPages ? 1 < d.totalPages : true));
         setLoading(false);
-      }
-    });
-    return () => {
-      alive = false;
-    };
+      })
+      .catch(() => { if (alive) { setItems([]); setLoading(false); setHasMore(false); } });
+    return () => { alive = false; };
   }, [chip, sort, locCity]);
+
+  // Append the next page (infinite scroll).
+  const loadMore = useCallback(() => {
+    if (loadingMore || loading || !hasMore) return;
+    setLoadingMore(true);
+    const next = page + 1;
+    fetchListings({ perPage: PER, page: next, category: chip || undefined, orderby: sort, city: locCity })
+      .then((d) => {
+        setItems((prev) => {
+          const seen = new Set(prev.map((x) => x.id));
+          return [...prev, ...d.items.filter((x) => !seen.has(x.id))];
+        });
+        setPage(next);
+        setHasMore(d.items.length >= PER && (d.totalPages ? next < d.totalPages : true));
+        setLoadingMore(false);
+      })
+      .catch(() => setLoadingMore(false));
+  }, [loadingMore, loading, hasMore, page, chip, sort, locCity]);
+
+  // Sentinel-based infinite scroll (root=null → fires as it nears the viewport).
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el) return;
+    const obs = new IntersectionObserver((es) => { if (es[0]?.isIntersecting) loadMore(); }, { rootMargin: "800px" });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [loadMore]);
 
   return (
     <div>
@@ -573,11 +606,16 @@ function BrowseView({ locCity, onOpenProduct }: { locCity: string; onOpenProduct
       {loading ? (
         <div style={css(GRID)}>{Array.from({ length: 15 }).map((_, i) => (<CardSkeleton key={i} />))}</div>
       ) : items.length > 0 ? (
-        <div style={css(GRID)}>
-          {items.map((it) => (
-            <div key={it.id} onClick={() => onOpenProduct(it)}><ProductCard it={it} /></div>
-          ))}
-        </div>
+        <>
+          <div style={css(GRID)}>
+            {items.map((it) => (
+              <div key={it.id} onClick={() => onOpenProduct(it)}><ProductCard it={it} /></div>
+            ))}
+            {loadingMore && Array.from({ length: 5 }).map((_, i) => (<CardSkeleton key={`more-${i}`} />))}
+          </div>
+          <div ref={sentinel} style={css("height:1px")} />
+          {!hasMore && <div style={css("text-align:center;padding:26px 10px;color:var(--muted);font-size:13px")}>That&apos;s everything in {locCity} for now.</div>}
+        </>
       ) : (
         <EmptyState text="We couldn't load inventory just now — try another filter." />
       )}

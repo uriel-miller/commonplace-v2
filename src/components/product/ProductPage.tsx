@@ -34,6 +34,7 @@ export interface ProductPageProps {
   onOpenProduct?: (item: Listing) => void;
   onRequestItem?: () => void;
   onNotify?: () => void;
+  onPlayVideo?: (id: string) => void;
 }
 
 /* pastel benefit tiles (live order + tints) */
@@ -101,7 +102,7 @@ function RelatedCard({ it, onOpen }: { it: Listing; onOpen?: () => void }) {
 }
 
 /* ================================================================== */
-export function ProductPage({ item, onBack, onOpenCategory, onMakeOffer, onOpenProduct, onRequestItem, onNotify }: ProductPageProps) {
+export function ProductPage({ item, onBack, onOpenCategory, onMakeOffer, onOpenProduct, onRequestItem, onNotify, onPlayVideo }: ProductPageProps) {
   const { add } = useCart();
   const [imgIdx, setImgIdx] = useState(0);
   const [wish, setWish] = useState(false);
@@ -333,7 +334,7 @@ export function ProductPage({ item, onBack, onOpenCategory, onMakeOffer, onOpenP
       </section>
 
       {/* How Commonplace Compares · By the numbers · What buyers say · Questions · Why Commonplace · Ask the Seller */}
-      <ProductExtras item={item} />
+      <ProductExtras item={item} onPlayVideo={onPlayVideo} />
 
       <style>{"@media(max-width:860px){[data-pp-grid]{grid-template-columns:1fr!important;gap:24px!important}[data-pp-steps]{grid-template-columns:1fr 1fr!important}}"}</style>
     </div>

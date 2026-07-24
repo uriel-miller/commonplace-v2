@@ -29,7 +29,7 @@ import {
 // page renders correctly whether it's mounted standalone or inside the shell
 // (re-declaring the same variables on a nested wrapper is harmless).
 const ROOT_VARS =
-  "--cream:#FBF8F4;--paper:#ffffff;--ink:#19171C;--muted:#7C7069;--line:#ECE4D8;--maroon:#620E3B;--maroon2:#7A2740;--tint:#F4E7EA;--putty:#f6f1ea;--gold:#C98A22;--blue:#7FA8D9;--purple:#9C88D6;--yellow:#E7C24B;--red:#C15540;--green:#3B7A57;--greenBg:#E1F0E7;--blueBg:#E4EDF8;--blueInk:#2C5B8A";
+  "--cream:#FDFBF9;--paper:#ffffff;--ink:#19171C;--muted:#7C7069;--line:#ECE4D8;--maroon:#620E3B;--maroon2:#7A2740;--tint:#F4E7EA;--putty:#f6f1ea;--gold:#C98A22;--blue:#7FA8D9;--purple:#9C88D6;--yellow:#E7C24B;--red:#C15540;--green:#3B7A57;--greenBg:#E1F0E7;--blueBg:#E4EDF8;--blueInk:#2C5B8A";
 
 /* ------------------------------------------------------------------ */
 /* Nav model                                                          */
