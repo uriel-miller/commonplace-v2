@@ -24,6 +24,7 @@ import { Footer } from "@/components/marketplace/Footer";
 import { RequestItemModal } from "@/components/marketplace/RequestItemModal";
 import { NotifyMePopup } from "@/components/marketplace/NotifyMePopup";
 import { AccountPage } from "@/components/pages/account/AccountPage";
+import { AuthModal } from "@/components/auth/AuthModal";
 import { SearchPage } from "@/components/pages/search/SearchPage";
 import { resolveInfoPage } from "@/components/pages/info";
 import { ProductPage } from "@/components/product/ProductPage";
@@ -157,6 +158,9 @@ export function MarketplaceApp() {
   const [priceMin, setPriceMin] = useState("");
   const [priceMax, setPriceMax] = useState("");
   const [attrs, setAttrs] = useState<Set<string>>(new Set());
+  const [authed, setAuthed] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  useEffect(() => { try { if (localStorage.getItem("cp_authed")) setAuthed(true); } catch { /* storage unavailable */ } }, []);
   const filter: FilterState = { conds, priceMin, priceMax, attrs };
   const toggleAttr = (o: string) => setAttrs((prev) => { const n = new Set(prev); if (n.has(o)) n.delete(o); else n.add(o); return n; });
 
@@ -256,7 +260,7 @@ export function MarketplaceApp() {
             <span style={css("position:absolute;top:-2px;right:-2px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--maroon);color:#fff;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--paper)")}>{cart.count}</span>
           )}
         </Hoverable>
-        <div title="Your account" onClick={() => setView("account")} style={css("display:flex;align-items:center;gap:9px;background:var(--blueBg);border-radius:22px;padding:4px 14px 4px 4px;cursor:pointer")}>
+        <div title="Your account" onClick={() => { if (authed) setView("account"); else setAuthOpen(true); }} style={css("display:flex;align-items:center;gap:9px;background:var(--blueBg);border-radius:22px;padding:4px 14px 4px 4px;cursor:pointer")}>
           <span style={css("width:32px;height:32px;border-radius:50%;background:var(--blueInk);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:14px")}>A</span>
           <span style={css("font-size:13.5px;font-weight:700;color:var(--blueInk)")}>Account</span>
         </div>
@@ -448,6 +452,34 @@ export function MarketplaceApp() {
                   </div>
                 </div>
               </div>
+              {/* Category filters: Price, Condition, + category-specific attributes */}
+              <div style={css("background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px 13px;margin-bottom:10px")}>
+                <div style={css("font-size:15px;font-weight:700;margin-bottom:10px")}>Filters</div>
+                <div style={css("font-size:12px;font-weight:700;color:var(--muted);margin-bottom:7px")}>Price</div>
+                <div style={css("display:flex;align-items:center;gap:8px;margin-bottom:13px")}>
+                  <input value={priceMin} onChange={(e) => setPriceMin(e.target.value)} inputMode="numeric" placeholder="Min $" style={css("width:100%;min-width:0;flex:1;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;outline:none;background:#fff")} />
+                  <span style={css("color:var(--muted);font-size:13px")}>–</span>
+                  <input value={priceMax} onChange={(e) => setPriceMax(e.target.value)} inputMode="numeric" placeholder="Max $" style={css("width:100%;min-width:0;flex:1;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;outline:none;background:#fff")} />
+                </div>
+                <div style={css("font-size:12px;font-weight:700;color:var(--muted);margin-bottom:7px")}>Condition</div>
+                <div style={css("display:flex;flex-wrap:wrap;gap:6px")}>
+                  {CONDITIONS.map((c) => {
+                    const on = conds.has(c.key);
+                    return (<div key={c.key} onClick={() => toggleCond(c.key)} style={sx("padding:6px 11px;border-radius:16px;font-size:12px;font-weight:600;cursor:pointer;transition:all .14s", on ? { background: "var(--maroon)", color: "#fff", border: "1px solid var(--maroon)" } : { background: "var(--paper)", color: "var(--ink)", border: "1px solid var(--line)" })}>{c.label}</div>);
+                  })}
+                </div>
+                {attrsForCategory(category.slug, category.name).map((g) => (
+                  <div key={g.label} style={css("margin-top:14px")}>
+                    <div style={css("font-size:12px;font-weight:700;color:var(--muted);margin-bottom:7px")}>{g.label}</div>
+                    <div style={css("display:flex;flex-wrap:wrap;gap:6px")}>
+                      {g.options.map((o) => {
+                        const on = attrs.has(o);
+                        return (<div key={o} onClick={() => toggleAttr(o)} style={sx("padding:6px 11px;border-radius:16px;font-size:12px;font-weight:600;cursor:pointer;transition:all .14s", on ? { background: "var(--maroon)", color: "#fff", border: "1px solid var(--maroon)" } : { background: "var(--paper)", color: "var(--ink)", border: "1px solid var(--line)" })}>{o}</div>);
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
               <div onClick={() => { setConds(new Set()); setPriceMin(""); setPriceMax(""); setAttrs(new Set()); }} style={css("text-align:center;padding:10px;color:var(--muted);font-size:12.5px;cursor:pointer;margin-bottom:6px")}>Clear all filters</div>
             </>
           )}
@@ -488,6 +520,7 @@ export function MarketplaceApp() {
       <AddonPopup open={addonOpen} categorySlugs={cart.items.filter((it) => !isAddonListing(it.listing)).map((it) => `${it.listing.categorySlug ?? ""} ${it.listing.categoryName ?? ""}`)} onClose={() => setAddonOpen(false)} />
       <RequestItemModal open={requestOpen} itemTitle={requestTitle || undefined} onClose={() => setRequestOpen(false)} />
       <NotifyMePopup open={notifyOpen} itemTitle={notifyTitle || undefined} onClose={() => setNotifyOpen(false)} />
+      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} onAuthed={(phone) => { setAuthed(true); try { localStorage.setItem("cp_authed", phone); } catch { /* ignore */ } setAuthOpen(false); setView("account"); }} />
     </div>
   );
 }
