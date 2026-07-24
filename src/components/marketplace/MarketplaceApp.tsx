@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { css, sx, Hoverable } from "@/lib/design/css";
 import {
   CAT_GROUPS,
@@ -25,6 +25,7 @@ import { RequestItemModal } from "@/components/marketplace/RequestItemModal";
 import { NotifyMePopup } from "@/components/marketplace/NotifyMePopup";
 import { AccountPage } from "@/components/pages/account/AccountPage";
 import { AuthModal } from "@/components/auth/AuthModal";
+import { TawkWidget } from "@/components/marketplace/TawkWidget";
 import { SearchPage } from "@/components/pages/search/SearchPage";
 import { resolveInfoPage } from "@/components/pages/info";
 import { ProductPage } from "@/components/product/ProductPage";
@@ -86,6 +87,7 @@ interface CatFilter { priceRanges: PriceRange[]; groups: AttrGroup[] }
 const P_HIGH: PriceRange[] = [{ label: "Under $5k", min: 0, max: 5000 }, { label: "$5k–$7.5k", min: 5000, max: 7500 }, { label: "$7.5k–$10k", min: 7500, max: 10000 }, { label: "$10k+", min: 10000, max: 0 }];
 const P_MID: PriceRange[] = [{ label: "Under $1k", min: 0, max: 1000 }, { label: "$1k–$3k", min: 1000, max: 3000 }, { label: "$3k–$6k", min: 3000, max: 6000 }, { label: "$6k+", min: 6000, max: 0 }];
 const P_LOW: PriceRange[] = [{ label: "Under $500", min: 0, max: 500 }, { label: "$500–$1.5k", min: 500, max: 1500 }, { label: "$1.5k–$3k", min: 1500, max: 3000 }, { label: "$3k+", min: 3000, max: 0 }];
+const P_TUB: PriceRange[] = [{ label: "Under $2k", min: 0, max: 2000 }, { label: "$2k–$4k", min: 2000, max: 4000 }, { label: "$4k–$6k", min: 4000, max: 6000 }, { label: "$6k+", min: 6000, max: 0 }];
 
 const CAT_FILTERS: Array<{ match: RegExp; config: CatFilter }> = [
   { match: /golf ?cart/i, config: { priceRanges: P_HIGH, groups: [{ label: "Gas or electric", options: ["Gas", "Electric"] }, { label: "Seats", options: ["2-seater", "4-seater", "6-seater"] }, { label: "Style", options: ["Lifted", "Street legal", "Standard"] }] } },
@@ -93,7 +95,7 @@ const CAT_FILTERS: Array<{ match: RegExp; config: CatFilter }> = [
   { match: /peloton[^]*row|rower|hydrow|ergatta/i, config: { priceRanges: P_LOW, groups: [{ label: "Brand", options: ["Peloton", "Hydrow", "Ergatta", "Concept2"] }] } },
   { match: /peloton[^]*bike|spin ?bike|indoor ?bike|\bbike\b/i, config: { priceRanges: P_LOW, groups: [{ label: "Model", options: ["Bike+", "Bike"] }, { label: "Year", options: ["2019", "2020", "2021", "2022", "2023", "2024"] }] } },
   { match: /swim ?spa/i, config: { priceRanges: P_HIGH, groups: [{ label: "Feature", options: ["Saltwater", "Bluetooth", "Current"] }] } },
-  { match: /hot ?tub|jacuzzi|hot ?spring|\bspa\b/i, config: { priceRanges: P_HIGH, groups: [{ label: "Seats", options: ["2 person", "4 person", "6 person", "8 person"] }, { label: "Feature", options: ["Saltwater", "Bluetooth", "Lounger"] }] } },
+  { match: /hot ?tub|jacuzzi|hot ?spring|\bspa\b/i, config: { priceRanges: P_TUB, groups: [{ label: "Capacity", options: ["2–3 person", "4–5 person", "6–7 person", "8+ person"] }, { label: "Water system", options: ["Saltwater", "Chlorine"] }] } },
   { match: /infrared ?sauna|sauna/i, config: { priceRanges: P_MID, groups: [{ label: "Type", options: ["Infrared", "Traditional"] }, { label: "Capacity", options: ["1 person", "2 person", "3 person", "4 person"] }] } },
   { match: /cold ?plunge|plunge|ice ?bath/i, config: { priceRanges: P_MID, groups: [{ label: "Feature", options: ["Chiller", "Filter"] }] } },
   { match: /massage ?chair/i, config: { priceRanges: P_MID, groups: [{ label: "Feature", options: ["Zero Gravity", "Heated", "Full Body"] }] } },
@@ -441,6 +443,7 @@ export function MarketplaceApp() {
                 <div style={css("display:flex;flex-direction:column;gap:6px")}>
                   {ARTICLES.map((a) => (
                     <Hoverable key={a.name} as="a" href={a.url} target="_blank" styles="display:flex;align-items:center;gap:11px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;cursor:pointer;transition:box-shadow .15s" hover="box-shadow:0 6px 16px rgba(60,10,35,.1)">
+                      <span style={sx("width:40px;height:40px;flex:0 0 auto;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;letter-spacing:-.02em;text-align:center;padding:2px;line-height:1.05", { background: a.logoBg, color: a.logoFg })}>{a.logoText}</span>
                       <span style={css("min-width:0;flex:1")}>
                         <span style={sx("display:block;font-size:13.5px;font-weight:800;line-height:1.15;letter-spacing:-.2px", { fontFamily: a.font })}>{a.name}</span>
                         <span style={css("display:block;font-size:11px;color:var(--muted);line-height:1.3;margin-top:2px")}>{a.quote}</span>
@@ -467,34 +470,36 @@ export function MarketplaceApp() {
                   </div>
                 </div>
               </div>
-              {/* Category filters: Price, Condition, + category-specific attributes */}
-              <div style={css("background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px 13px;margin-bottom:10px")}>
-                <div style={css("font-size:15px;font-weight:700;margin-bottom:10px")}>Filters</div>
-                <div style={css("font-size:12px;font-weight:700;color:var(--muted);margin-bottom:7px")}>Price</div>
-                <div style={css("display:flex;align-items:center;gap:8px;margin-bottom:13px")}>
-                  <input value={priceMin} onChange={(e) => setPriceMin(e.target.value)} inputMode="numeric" placeholder="Min $" style={css("width:100%;min-width:0;flex:1;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;outline:none;background:#fff")} />
-                  <span style={css("color:var(--muted);font-size:13px")}>–</span>
-                  <input value={priceMax} onChange={(e) => setPriceMax(e.target.value)} inputMode="numeric" placeholder="Max $" style={css("width:100%;min-width:0;flex:1;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;outline:none;background:#fff")} />
-                </div>
-                <div style={css("font-size:12px;font-weight:700;color:var(--muted);margin-bottom:7px")}>Condition</div>
-                <div style={css("display:flex;flex-wrap:wrap;gap:6px")}>
-                  {CONDITIONS.map((c) => {
-                    const on = conds.has(c.key);
-                    return (<div key={c.key} onClick={() => toggleCond(c.key)} style={sx("padding:6px 11px;border-radius:16px;font-size:12px;font-weight:600;cursor:pointer;transition:all .14s", on ? { background: "var(--maroon)", color: "#fff", border: "1px solid var(--maroon)" } : { background: "var(--paper)", color: "var(--ink)", border: "1px solid var(--line)" })}>{c.label}</div>);
-                  })}
-                </div>
-                {attrsForCategory(category.slug, category.name).map((g) => (
-                  <div key={g.label} style={css("margin-top:14px")}>
-                    <div style={css("font-size:12px;font-weight:700;color:var(--muted);margin-bottom:7px")}>{g.label}</div>
-                    <div style={css("display:flex;flex-wrap:wrap;gap:6px")}>
-                      {g.options.map((o) => {
-                        const on = attrs.has(o);
-                        return (<div key={o} onClick={() => toggleAttr(o)} style={sx("padding:6px 11px;border-radius:16px;font-size:12px;font-weight:600;cursor:pointer;transition:all .14s", on ? { background: "var(--maroon)", color: "#fff", border: "1px solid var(--maroon)" } : { background: "var(--paper)", color: "var(--ink)", border: "1px solid var(--line)" })}>{o}</div>);
-                      })}
+              {/* Category filters: numbered sections (Price chips → attributes → Condition) */}
+              {(() => {
+                const cfg = filterConfigFor(category.slug, category.name);
+                const chip = (label: string, active: boolean, onClick: () => void) => (
+                  <div key={label} onClick={onClick} style={sx("padding:8px 14px;border-radius:20px;font-size:13px;font-weight:500;cursor:pointer;transition:all .14s;white-space:nowrap", active ? { background: "var(--maroon)", color: "#fff", border: "1px solid var(--maroon)" } : { background: "var(--paper)", color: "var(--ink)", border: "1px solid var(--line)" })}>{label}</div>
+                );
+                const section = (num: number, label: string, chips: ReactNode) => (
+                  <div key={label + num} style={css("background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 15px;margin-bottom:10px")}>
+                    <div style={css("display:flex;align-items:center;gap:9px;margin-bottom:12px")}>
+                      <span style={css("width:22px;height:22px;flex:0 0 auto;border-radius:50%;background:#ECEBFB;color:var(--blueInk);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center")}>{num}</span>
+                      <span style={css("font-size:14px;font-weight:700;color:var(--ink)")}>{label}</span>
                     </div>
+                    <div style={css("display:flex;flex-wrap:wrap;gap:8px")}>{chips}</div>
                   </div>
-                ))}
-              </div>
+                );
+                let n = 0;
+                return (
+                  <>
+                    {section(++n, "Price", cfg.priceRanges.map((r) => {
+                      const active = priceMin === (r.min ? String(r.min) : "") && priceMax === (r.max ? String(r.max) : "");
+                      return chip(r.label, active, () => {
+                        if (active) { setPriceMin(""); setPriceMax(""); }
+                        else { setPriceMin(r.min ? String(r.min) : ""); setPriceMax(r.max ? String(r.max) : ""); }
+                      });
+                    }))}
+                    {cfg.groups.map((g) => section(++n, g.label, g.options.map((o) => chip(o, attrs.has(o), () => toggleAttr(o)))))}
+                    {section(++n, "Condition", CONDITIONS.map((c) => chip(c.label, conds.has(c.key), () => toggleCond(c.key))))}
+                  </>
+                );
+              })()}
               <div onClick={() => { setConds(new Set()); setPriceMin(""); setPriceMax(""); setAttrs(new Set()); }} style={css("text-align:center;padding:10px;color:var(--muted);font-size:12.5px;cursor:pointer;margin-bottom:6px")}>Clear all filters</div>
             </>
           )}
@@ -530,7 +535,7 @@ export function MarketplaceApp() {
       <SideCart open={cartOpen} onClose={() => setCartOpen(false)} onCheckout={() => { setCartOpen(false); setView("checkout"); }} />
 
       {videoId && <VideoLightbox id={videoId} onClose={() => setVideoId(null)} />}
-      <ConciergeChat open={chatOpen} onToggle={() => setChatOpen((v) => !v)} onSell={() => { setChatOpen(false); setView("sell"); }} onBrowse={() => { setChatOpen(false); goBrowse(); }} onTrack={() => { setChatOpen(false); setView("track"); }} />
+      <TawkWidget />
       <CartExitPopup enabled={cart.count > 0} onClose={() => {}} />
       <AddonPopup open={addonOpen} categorySlugs={cart.items.filter((it) => !isAddonListing(it.listing)).map((it) => `${it.listing.categorySlug ?? ""} ${it.listing.categoryName ?? ""}`)} onClose={() => setAddonOpen(false)} />
       <RequestItemModal open={requestOpen} itemTitle={requestTitle || undefined} onClose={() => setRequestOpen(false)} />

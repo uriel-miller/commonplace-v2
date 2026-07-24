@@ -65,6 +65,35 @@ export const CAT_GROUPS: CatGroup[] = [
     ],
   },
   {
+    name: "Appliances",
+    iconPath: "M6 3h12v18H6zM6 9h12M9 6h.01M9 13h.01",
+    bg: "var(--yellowBg)",
+    fg: "var(--gold)",
+    items: [
+      { name: "Refrigerators", slug: "refrigerators" },
+      { name: "Washers", slug: "washer" },
+      { name: "Dryers", slug: "dryer" },
+      { name: "Dishwashers", slug: "dishwasher" },
+      { name: "Ranges & Ovens", slug: "electric-range" },
+    ],
+  },
+  {
+    name: "Furniture",
+    iconPath: "M4 11V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4M2 16v-1a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v1M4 16v3M20 16v3",
+    bg: "#efe7f3",
+    fg: "var(--purple)",
+    items: [
+      { name: "Sofas", slug: "sofas" },
+      { name: "Sectionals", slug: "sectionals" },
+      { name: "Dining Tables", slug: "dining-tables" },
+      { name: "Coffee Tables", slug: "coffee-tables" },
+      { name: "Desks", slug: "desks" },
+      { name: "Dressers", slug: "dressers" },
+      { name: "Bookshelves", slug: "bookshelves" },
+      { name: "Lamps", slug: "lamps" },
+    ],
+  },
+  {
     name: "Vehicles",
     iconPath: "M5 16a2 2 0 1 0 4 0M15 16a2 2 0 1 0 4 0M3 16V8h11l4 4h3v4",
     bg: "var(--greenBg)",
@@ -109,16 +138,18 @@ export interface Article {
   quote: string;
   url: string;
   font: string;
+  logoText: string;
+  logoBg: string;
+  logoFg: string;
 }
 export const ARTICLES: Article[] = [
-  { name: "TechCrunch", quote: "Rethinking how big items get resold.", url: "#", font: "'Inter Tight',sans-serif" },
-  { name: "The Verge", quote: "White-glove resale, done right.", url: "#", font: "'Newsreader',serif" },
-  { name: "Forbes", quote: "A marketplace built on trust.", url: "#", font: "'Newsreader',serif" },
-  { name: "Business Insider", quote: "The $1-to-reserve model is catching on.", url: "#", font: "'Inter Tight',sans-serif" },
-  { name: "Fast Company", quote: "Making big-ticket resale feel effortless.", url: "#", font: "'Inter Tight',sans-serif" },
-  { name: "Bloomberg", quote: "White-glove logistics for the resale era.", url: "#", font: "'Newsreader',serif" },
-  { name: "Axios", quote: "Where big things actually change hands.", url: "#", font: "'Inter Tight',sans-serif" },
-  { name: "Modern Retail", quote: "Delivery-first resale, done right.", url: "#", font: "'Newsreader',serif" },
+  { name: "New York Post", quote: "Eye-catching prices", url: "#", font: "'Newsreader',serif", logoText: "NY POST", logoBg: "#C8102E", logoFg: "#fff" },
+  { name: "TechCrunch", quote: "Next-day delivery in major cities", url: "#", font: "'Inter Tight',sans-serif", logoText: "TC", logoBg: "#0A9E01", logoFg: "#fff" },
+  { name: "Lifehacker", quote: "I'd buy used every time", url: "#", font: "'Inter Tight',sans-serif", logoText: "LH", logoBg: "#0A9E01", logoFg: "#fff" },
+  { name: "CNBC", quote: "Faster & cheaper secondhand", url: "#", font: "'Inter Tight',sans-serif", logoText: "CNBC", logoBg: "#004B8D", logoFg: "#fff" },
+  { name: "Fast Company", quote: "Pickup & delivery handled", url: "#", font: "'Newsreader',serif", logoText: "FC", logoBg: "#111", logoFg: "#fff" },
+  { name: "Financial Times", quote: "Marketplace for fitness equipment", url: "#", font: "'Newsreader',serif", logoText: "FT", logoBg: "#FCD0B1", logoFg: "#33302E" },
+  { name: "Retail Insider", quote: "Alternative to Facebook Marketplace", url: "#", font: "'Newsreader',serif", logoText: "R·I", logoBg: "#111", logoFg: "#fff" },
 ];
 
 export interface Condition {
