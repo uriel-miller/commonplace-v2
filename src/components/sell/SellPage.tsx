@@ -229,8 +229,11 @@ export function SellPage({ onDone }: { onDone?: () => void }) {
     });
 
   const visibleFields = spec.questions.filter(
-    (f) => !f.showWhen || (Array.isArray(answers[f.showWhen.field]) && (answers[f.showWhen.field] as string[]).includes(f.showWhen.includes)),
+    (f) => (!f.showWhen || (Array.isArray(answers[f.showWhen.field]) && (answers[f.showWhen.field] as string[]).includes(f.showWhen.includes)))
+      && !/serial/i.test(f.label) && !/serial/i.test(f.key), // drop serial-number clutter
   );
+  // The generic Condition chips are hidden when the category already asks its own condition question.
+  const hasOwnCondition = visibleFields.some((f) => /\bcondition\b|rides/i.test(f.label) || f.key === "condition");
 
   /* ---- draft save/load ---- */
   const persistDraft = useCallback(() => {
@@ -423,26 +426,6 @@ export function SellPage({ onDone }: { onDone?: () => void }) {
       <p style={css("font-size:14px;color:var(--muted);margin-bottom:22px")}>List it once — Commonplace handles pickup, inspection, delivery, and payment.</p>
 
       <div style={css("display:flex;flex-direction:column;gap:18px")}>
-        {/* Photos + AI (drop a photo and Margot fills everything in) */}
-        <div>
-          <FieldLabel label="Photos" help="Add a photo and Margot auto-fills the details for you." />
-          <div style={css("display:flex;flex-wrap:wrap;gap:10px;align-items:center")}>
-            {photos.map((p, i) => (
-              <div key={i} style={css("position:relative;width:78px;height:78px;border-radius:10px;overflow:hidden;border:1px solid var(--line)")}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={p} alt="" style={css("width:100%;height:100%;object-fit:cover")} />
-                <span onClick={() => setPhotos((prev) => prev.filter((_, x) => x !== i))} style={css("position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;cursor:pointer")}>×</span>
-              </div>
-            ))}
-            <label style={sx("width:78px;height:78px;border-radius:10px;border:1.5px dashed var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;color:var(--muted);font-size:11px;text-align:center", "background:var(--paper)")}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>
-              Add
-              <input type="file" accept="image/*" multiple onChange={(e) => onPhotoPick(e.target.files)} style={css("display:none")} />
-            </label>
-            {aiBusy && <span style={css("font-size:13px;color:" + PLUM + ";font-weight:600")}>✨ Margot is reading your photo…</span>}
-          </div>
-        </div>
-
         {/* Item name — reveals the rest of the form */}
         <div>
           <FieldLabel label="What are you selling?" help="A short title — our AI polishes it into a clean, searchable listing." />
@@ -469,25 +452,35 @@ export function SellPage({ onDone }: { onDone?: () => void }) {
               </span>
               <Hoverable as="span" onClick={() => setCatEditing((v) => !v)} styles="font-size:13px;font-weight:700;color:var(--blueInk);cursor:pointer" hover="text-decoration:underline">{catEditing ? "Close" : "Change"}</Hoverable>
             </div>
-            {catEditing && (
-              <div style={css("margin-top:12px;border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--paper);max-height:300px;overflow-y:auto")}>
-                {CAT_GROUPS.map((g) => (
-                  <div key={g.name} style={css("margin-bottom:12px")}>
-                    <div style={css("font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:7px")}>{g.name}</div>
-                    <div style={css("display:flex;flex-wrap:wrap;gap:6px")}>
-                      {g.items.map((it) => {
-                        const on = it.slug === catSlug;
-                        return (
-                          <div key={it.slug} onClick={() => { setCatSlug(it.slug); setCatConfident(true); setCatTouched(true); setCatEditing(false); }}
-                            style={sx("padding:7px 12px;border-radius:16px;font-size:12.5px;font-weight:600;cursor:pointer;transition:all .14s", on ? { background: PLUM, color: "#fff", border: `1px solid ${PLUM}` } : { background: "var(--paper)", color: "var(--ink)", border: "1px solid var(--line)" })}>{it.name}</div>
-                        );
-                      })}
-                    </div>
+            {catEditing && (() => {
+              // Only show SUGGESTED categories related to what they typed — e.g.
+              // "peloton" surfaces the Peloton family, not the whole catalog.
+              const t = title.toLowerCase();
+              const words = t.split(/[^a-z0-9+]+/).filter((w) => w.length > 2);
+              let sugg = ALL_CATS.filter((c) => {
+                const cn = c.name.toLowerCase();
+                return words.some((w) => cn.includes(w)) || cn.split(/\s+/).some((cw) => cw.length > 2 && t.includes(cw));
+              });
+              if (sugg.length < 2) {
+                const grp = CAT_GROUPS.find((g) => g.items.some((i) => i.slug === catSlug));
+                sugg = grp ? grp.items : ALL_CATS.slice(0, 10);
+              }
+              return (
+                <div style={css("margin-top:12px;border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--paper)")}>
+                  <div style={css("font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:9px")}>Suggested categories</div>
+                  <div style={css("display:flex;flex-wrap:wrap;gap:6px")}>
+                    {sugg.map((it) => {
+                      const on = it.slug === catSlug;
+                      return (
+                        <div key={it.slug} onClick={() => { setCatSlug(it.slug); setCatConfident(true); setCatTouched(true); setCatEditing(false); }}
+                          style={sx("padding:7px 13px;border-radius:16px;font-size:12.5px;font-weight:600;cursor:pointer;transition:all .14s", on ? { background: PLUM, color: "#fff", border: `1px solid ${PLUM}` } : { background: "var(--paper)", color: "var(--ink)", border: "1px solid var(--line)" })}>{it.name}</div>
+                      );
+                    })}
                   </div>
-                ))}
-                <div onClick={() => { setCatSlug(""); setCatConfident(true); setCatTouched(true); setCatEditing(false); }} style={css("font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;text-decoration:underline;margin-top:4px")}>Use a generic listing instead</div>
-              </div>
-            )}
+                  <div onClick={() => { setCatSlug(""); setCatConfident(true); setCatTouched(true); setCatEditing(false); }} style={css("font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;text-decoration:underline;margin-top:12px")}>Use a generic listing instead</div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Category-specific ACF fields */}
@@ -495,19 +488,21 @@ export function SellPage({ onDone }: { onDone?: () => void }) {
             <FieldRenderer key={f.key} f={f} val={answers[f.key]} setAns={setAns} toggleChip={toggleChip} />
           ))}
 
-          {/* Condition */}
-          <div>
-            <FieldLabel label="Condition" />
-            <div style={css("display:flex;flex-wrap:wrap;gap:7px")}>
-              {CONDITIONS.map((c) => {
-                const on = cond === c.label;
-                return (
-                  <div key={c.key} onClick={() => setCond(c.label)} style={sx("padding:8px 14px;border-radius:18px;font-size:13px;font-weight:600;cursor:pointer;transition:all .14s",
-                    on ? { background: PLUM, color: "#fff", border: `1px solid ${PLUM}` } : { background: "var(--paper)", color: "var(--ink)", border: "1px solid var(--line)" })}>{c.label}</div>
-                );
-              })}
+          {/* Condition — only when the category doesn't already ask its own */}
+          {!hasOwnCondition && (
+            <div>
+              <FieldLabel label="Condition" />
+              <div style={css("display:flex;flex-wrap:wrap;gap:7px")}>
+                {CONDITIONS.map((c) => {
+                  const on = cond === c.label;
+                  return (
+                    <div key={c.key} onClick={() => setCond(c.label)} style={sx("padding:8px 14px;border-radius:18px;font-size:13px;font-weight:600;cursor:pointer;transition:all .14s",
+                      on ? { background: PLUM, color: "#fff", border: `1px solid ${PLUM}` } : { background: "var(--paper)", color: "var(--ink)", border: "1px solid var(--line)" })}>{c.label}</div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Price */}
           <div style={css("display:grid;grid-template-columns:1fr 1fr;gap:14px")}>
