@@ -623,6 +623,12 @@ function BrowseView({ locCity, onOpenProduct }: { locCity: string; onOpenProduct
   );
 }
 
+/* Parent categories that aggregate several child category slugs (e.g. the
+   "Vehicles" page shows cars + golf carts + scooters + ATVs + RVs together). */
+const CATEGORY_CHILDREN: Record<string, string[]> = {
+  vehicles: ["cars", "golf-carts", "scooters", "atv", "rv-motorhome", "motorcycles", "dirt-bike", "jet-skis", "mini-moke", "camper-vans", "lawn-mower", "street-rod"],
+};
+
 /* ------------------------------- Category view ------------------------------- */
 function CategoryView({ catName, categorySlug, onOpenProduct }: { catName: string; categorySlug: string; onOpenProduct: (it: Listing) => void }) {
   const [items, setItems] = useState<Listing[]>([]);
@@ -633,16 +639,30 @@ function CategoryView({ catName, categorySlug, onOpenProduct }: { catName: strin
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    fetchListings({ category: categorySlug, perPage: 24, orderby: sort }).then((d) => {
-      if (alive) {
-        setItems(d.items);
-        setTotal(d.total);
+    const children = CATEGORY_CHILDREN[categorySlug];
+    if (children) {
+      // Aggregate all child categories into one page.
+      Promise.all(children.map((c) =>
+        fetchListings({ category: c, perPage: 16, orderby: sort }).catch(() => ({ items: [], total: 0, totalPages: 0, page: 1 })),
+      )).then((results) => {
+        if (!alive) return;
+        const seen = new Set<number>();
+        const merged: Listing[] = [];
+        let tot = 0;
+        for (const r of results) {
+          tot += r.total || 0;
+          for (const it of r.items) if (!seen.has(it.id)) { seen.add(it.id); merged.push(it); }
+        }
+        setItems(merged);
+        setTotal(tot);
         setLoading(false);
-      }
-    });
-    return () => {
-      alive = false;
-    };
+      }).catch(() => { if (alive) { setItems([]); setLoading(false); } });
+    } else {
+      fetchListings({ category: categorySlug, perPage: 24, orderby: sort }).then((d) => {
+        if (alive) { setItems(d.items); setTotal(d.total); setLoading(false); }
+      }).catch(() => { if (alive) { setItems([]); setLoading(false); } });
+    }
+    return () => { alive = false; };
   }, [categorySlug, sort]);
 
   return (

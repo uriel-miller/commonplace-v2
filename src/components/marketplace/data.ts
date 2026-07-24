@@ -70,8 +70,10 @@ export const CAT_GROUPS: CatGroup[] = [
     bg: "var(--greenBg)",
     fg: "var(--green)",
     items: [
-      { name: "Vehicles", slug: "cars" },
+      { name: "All Vehicles", slug: "vehicles" },
+      { name: "Cars & Trucks", slug: "cars" },
       { name: "Golf Carts", slug: "golf-carts" },
+      { name: "Scooters", slug: "scooters" },
       { name: "ATV", slug: "atv" },
       { name: "RV / Motorhome", slug: "rv-motorhome" },
       { name: "Lawn Mower", slug: "lawn-mower" },
