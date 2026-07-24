@@ -26,7 +26,7 @@ If you receive a defective, damaged, or incorrect item, contact us immediately s
 ## How to Reach Us
 
 - **Email:** service@trycommonplace.com
-- **Phone:** 858-997-4008
+- **Phone:** (516) 357-5989
 - **Hours:** Sunday – Friday, 9 AM – 9 PM ET`;
 
 export function ReturnPolicyPage() {

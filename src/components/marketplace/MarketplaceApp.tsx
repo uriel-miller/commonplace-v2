@@ -159,9 +159,16 @@ export function MarketplaceApp() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={LOGO} alt="Commonplace" style={css("height:26px;width:auto;display:block")} />
         </div>
-        <div onClick={() => { setSearchQuery(""); setView("search"); }} style={css("flex:0 1 380px;display:flex;align-items:center;gap:8px;background:#F1EBE1;border-radius:22px;padding:10px 16px;color:var(--muted);cursor:pointer")}>
+        <div style={css("flex:0 1 380px;display:flex;align-items:center;gap:8px;background:#F1EBE1;border-radius:22px;padding:10px 16px;color:var(--muted)")}>
           <Search />
-          <span style={css("font-size:14px")}>Search Commonplace</span>
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && searchQuery.trim()) setView("search"); }}
+            onFocus={() => { if (view !== "search") setView("search"); }}
+            placeholder="Search Commonplace"
+            style={css("flex:1;min-width:0;border:none;outline:none;background:transparent;font-size:14px;color:var(--ink);font-family:inherit")}
+          />
         </div>
         <div style={css("display:flex;align-items:center;gap:20px;font-size:13px;font-weight:600;color:var(--muted);flex:0 0 auto;white-space:nowrap")}>
           <Hoverable onClick={() => openInfo("about")} styles="cursor:pointer" hover="color:var(--ink)">About Us</Hoverable>

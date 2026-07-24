@@ -36,6 +36,8 @@ export function SearchPage({
   // ---- input + filter state ----
   const [query, setQuery] = useState(initialQuery);
   const [debounced, setDebounced] = useState(initialQuery.trim());
+  // Keep the search box in sync when the header search drives initialQuery.
+  useEffect(() => { setQuery(initialQuery); }, [initialQuery]);
   const [category, setCategory] = useState<string>("");
   const [sort, setSort] = useState<string>("recommended");
   const [priceMin, setPriceMin] = useState<string>("");

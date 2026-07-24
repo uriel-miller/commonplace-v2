@@ -58,7 +58,7 @@ Cancellations are subject to a 10% restocking fee. However, if your order hasn't
 ## Still need help? Get in touch with us
 
 - **Email:** service@trycommonplace.com
-- **Phone:** 858-997-4008
+- **Phone:** (516) 357-5989
 - **Hours:** Sunday – Friday, 9 AM – 9 PM ET`;
 
 const LABEL = "display:block;font-size:0.82rem;font-weight:600;color:var(--ink);margin:0 0 6px";
