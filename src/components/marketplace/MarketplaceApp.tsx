@@ -55,6 +55,48 @@ type View = "browse" | "category" | "buying" | "selling" | "product" | "account"
 const ROOT_VARS =
   "--cream:#FDFBF9;--paper:#ffffff;--ink:#19171C;--muted:#7C7069;--line:#ECE4D8;--maroon:#620E3B;--maroon2:#7A2740;--tint:#F4E7EA;--putty:#f6f1ea;--gold:#C98A22;--blue:#7FA8D9;--purple:#9C88D6;--yellow:#E7C24B;--red:#C15540;--green:#3B7A57;--greenBg:#E1F0E7;--blueBg:#E4EDF8;--blueInk:#2C5B8A;--fbblue:#1877F2;--fbbtn:#E7F3FF;--yellowBg:#F7EDCE";
 
+/* --------------------------- Filters (functional + category-specific) --------------------------- */
+interface FilterState { conds: Set<string>; priceMin: string; priceMax: string; attrs: Set<string> }
+
+function matchesFilter(it: Listing, f: FilterState): boolean {
+  const p = (it.priceCents ?? 0) / 100;
+  const mn = parseFloat(f.priceMin); if (!Number.isNaN(mn) && p < mn) return false;
+  const mx = parseFloat(f.priceMax); if (!Number.isNaN(mx) && p > mx) return false;
+  if (f.conds.size > 0) {
+    const label = (it.condition || "").toLowerCase();
+    let ok = false;
+    for (const k of f.conds) { const c = CONDITIONS.find((x) => x.key === k); if (c && c.label.toLowerCase() === label) { ok = true; break; } }
+    if (!ok) return false;
+  }
+  if (f.attrs.size > 0) {
+    const t = (it.title || "").toLowerCase();
+    if (![...f.attrs].some((a) => t.includes(a.toLowerCase()))) return false;
+  }
+  return true;
+}
+
+/* Per-category attribute filters (matched by keyword on slug+name); each option
+   is a keyword we look for in the listing title. Order: most specific first. */
+const CATEGORY_ATTRS: Array<{ match: RegExp; groups: { label: string; options: string[] }[] }> = [
+  { match: /peloton[^]*tread|tread ?mill|nordic ?track|pro ?form/i, groups: [{ label: "Model", options: ["Tread+", "Tread"] }, { label: "Year", options: ["2019", "2020", "2021", "2022", "2023", "2024"] }] },
+  { match: /peloton[^]*row|rower|hydrow|ergatta/i, groups: [{ label: "Brand", options: ["Peloton", "Hydrow", "Ergatta", "Concept2"] }] },
+  { match: /peloton[^]*bike|spin ?bike|indoor ?bike|\bbike\b/i, groups: [{ label: "Model", options: ["Bike+", "Bike Plus", "Bike"] }, { label: "Year", options: ["2019", "2020", "2021", "2022", "2023", "2024"] }] },
+  { match: /swim ?spa/i, groups: [{ label: "Feature", options: ["Saltwater", "Bluetooth"] }] },
+  { match: /hot ?tub|jacuzzi|hot ?spring|\bspa\b/i, groups: [{ label: "Seats", options: ["2 person", "3 person", "4 person", "5 person", "6 person", "7 person", "8 person"] }, { label: "Feature", options: ["Saltwater", "Bluetooth"] }] },
+  { match: /infrared ?sauna|sauna/i, groups: [{ label: "Type", options: ["Infrared", "Traditional"] }, { label: "Capacity", options: ["1 person", "2 person", "3 person", "4 person"] }] },
+  { match: /cold ?plunge|plunge|ice ?bath/i, groups: [{ label: "Feature", options: ["Chiller", "Filter"] }] },
+  { match: /golf ?cart/i, groups: [{ label: "Seats", options: ["2 seat", "4 seat", "6 seat"] }, { label: "Power", options: ["Electric", "Gas", "Lithium"] }] },
+  { match: /massage ?chair/i, groups: [{ label: "Feature", options: ["Zero Gravity", "Heated", "Full Body"] }] },
+  { match: /tonal|home ?gym|functional ?trainer|smith ?machine|bowflex/i, groups: [{ label: "Feature", options: ["Digital", "Smart", "Full Accessories"] }] },
+  { match: /\bcar\b|truck|\bsuv\b|vehicle|scooter|vespa|\batv\b|motorcycle|moped/i, groups: [{ label: "Year", options: ["2016", "2017", "2018", "2019", "2020", "2021", "2022", "2023", "2024"] }] },
+];
+
+function attrsForCategory(slug: string, name: string): { label: string; options: string[] }[] {
+  const s = (slug + " " + name).toLowerCase();
+  const hit = CATEGORY_ATTRS.find((c) => c.match.test(s));
+  return hit ? hit.groups : [];
+}
+
 export function MarketplaceApp() {
   const [view, setView] = useState<View>("browse");
   const [category, setCategory] = useState<CatItem | null>(null);
@@ -114,12 +156,16 @@ export function MarketplaceApp() {
   const [conds, setConds] = useState<Set<string>>(new Set());
   const [priceMin, setPriceMin] = useState("");
   const [priceMax, setPriceMax] = useState("");
+  const [attrs, setAttrs] = useState<Set<string>>(new Set());
+  const filter: FilterState = { conds, priceMin, priceMax, attrs };
+  const toggleAttr = (o: string) => setAttrs((prev) => { const n = new Set(prev); if (n.has(o)) n.delete(o); else n.add(o); return n; });
 
   const notCategory = view !== "category";
   const isCategory = view === "category";
 
   function openCategory(item: CatItem) {
     setCategory(item);
+    setAttrs(new Set()); // category-specific attrs shouldn't carry across categories
     setView("category");
   }
   function openProduct(item: Listing) {
@@ -304,6 +350,19 @@ export function MarketplaceApp() {
                     );
                   })}
                 </div>
+                {category && attrsForCategory(category.slug, category.name).map((g) => (
+                  <div key={g.label} style={css("margin-top:14px")}>
+                    <div style={css("font-size:12px;font-weight:700;color:var(--muted);margin-bottom:7px")}>{g.label}</div>
+                    <div style={css("display:flex;flex-wrap:wrap;gap:6px")}>
+                      {g.options.map((o) => {
+                        const on = attrs.has(o);
+                        return (
+                          <div key={o} onClick={() => toggleAttr(o)} style={sx("padding:6px 11px;border-radius:16px;font-size:12px;font-weight:600;cursor:pointer;transition:all .14s", on ? { background: "var(--maroon)", color: "#fff", border: "1px solid var(--maroon)" } : { background: "var(--paper)", color: "var(--ink)", border: "1px solid var(--line)" })}>{o}</div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
 
               {/* Learn */}
@@ -389,7 +448,7 @@ export function MarketplaceApp() {
                   </div>
                 </div>
               </div>
-              <div onClick={() => { setConds(new Set()); setPriceMin(""); setPriceMax(""); }} style={css("text-align:center;padding:10px;color:var(--muted);font-size:12.5px;cursor:pointer;margin-bottom:6px")}>Clear all filters</div>
+              <div onClick={() => { setConds(new Set()); setPriceMin(""); setPriceMax(""); setAttrs(new Set()); }} style={css("text-align:center;padding:10px;color:var(--muted);font-size:12.5px;cursor:pointer;margin-bottom:6px")}>Clear all filters</div>
             </>
           )}
         </aside>
@@ -398,8 +457,8 @@ export function MarketplaceApp() {
         {/* ============================ MAIN ============================ */}
         <main style={css(showSidebar ? "flex:1;overflow-y:auto;padding:20px 22px 56px 7px" : "flex:1;overflow-y:auto;padding:0")}>
           <ErrorBoundary onReset={goBrowse}>
-            {view === "browse" && <BrowseView locCity={locCity} onOpenProduct={openProduct} />}
-            {view === "category" && category && <CategoryView catName={category.name} categorySlug={category.slug} onOpenProduct={openProduct} />}
+            {view === "browse" && <BrowseView locCity={locCity} onOpenProduct={openProduct} filter={filter} />}
+            {view === "category" && category && <CategoryView catName={category.name} categorySlug={category.slug} onOpenProduct={openProduct} filter={filter} />}
             {view === "buying" && <BuyingDashboard onBrowse={goBrowse} />}
             {view === "selling" && <SellingDashboard onBrowse={goBrowse} onNew={() => setView("sell")} />}
             {view === "product" && product && <ProductPage item={product} onBack={goBrowse} onOpenCategory={(slug, name) => openCategory({ name, slug })} onMakeOffer={() => setOfferOpen(true)} onOpenProduct={openProduct} onRequestItem={() => openRequest(product.title)} onNotify={() => openNotify(product.title)} onPlayVideo={(id) => setVideoId(id)} />}
@@ -411,7 +470,7 @@ export function MarketplaceApp() {
             {view === "track" && <OrderTracking orderId={activeOrderId ?? undefined} onBack={goBrowse} onBrowse={goBrowse} />}
             {view === "info" && infoSlug && <InfoView slug={infoSlug} />}
           </ErrorBoundary>
-          {!["cart", "checkout", "track"].includes(view) && (
+          {!["cart", "checkout", "track", "browse"].includes(view) && (
             <Footer onBrowse={goBrowse} onSell={() => setView("sell")} onTrack={() => setView("track")} onInfo={openInfo} onCategory={(slug, name) => openCategory({ name, slug })} />
           )}
         </main>
@@ -531,7 +590,7 @@ function EmptyState({ text }: { text: string }) {
 }
 
 /* ------------------------------- Browse view ------------------------------- */
-function BrowseView({ locCity, onOpenProduct }: { locCity: string; onOpenProduct: (it: Listing) => void }) {
+function BrowseView({ locCity, onOpenProduct, filter }: { locCity: string; onOpenProduct: (it: Listing) => void; filter: FilterState }) {
   const [items, setItems] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [chip, setChip] = useState("");
@@ -546,7 +605,7 @@ function BrowseView({ locCity, onOpenProduct }: { locCity: string; onOpenProduct
   useEffect(() => {
     let alive = true;
     setLoading(true); setPage(1); setHasMore(true);
-    fetchListings({ perPage: PER, page: 1, category: chip || undefined, orderby: sort, city: locCity })
+    fetchListings({ perPage: PER, page: 1, category: chip || undefined, orderby: sort })
       .then((d) => {
         if (!alive) return;
         setItems(d.items);
@@ -562,7 +621,7 @@ function BrowseView({ locCity, onOpenProduct }: { locCity: string; onOpenProduct
     if (loadingMore || loading || !hasMore) return;
     setLoadingMore(true);
     const next = page + 1;
-    fetchListings({ perPage: PER, page: next, category: chip || undefined, orderby: sort, city: locCity })
+    fetchListings({ perPage: PER, page: next, category: chip || undefined, orderby: sort })
       .then((d) => {
         setItems((prev) => {
           const seen = new Set(prev.map((x) => x.id));
@@ -579,17 +638,19 @@ function BrowseView({ locCity, onOpenProduct }: { locCity: string; onOpenProduct
   useEffect(() => {
     const el = sentinel.current;
     if (!el) return;
-    // Track the nearest scrollable ancestor (the <main> scroller), not just the
-    // document viewport, so the sentinel fires on internal scroll.
-    let root: HTMLElement | null = el.parentElement;
-    while (root) {
-      const oy = getComputedStyle(root).overflowY;
-      if (oy === "auto" || oy === "scroll") break;
-      root = root.parentElement;
-    }
-    const obs = new IntersectionObserver((es) => { if (es[0]?.isIntersecting) loadMore(); }, { root, rootMargin: "600px" });
-    obs.observe(el);
-    return () => obs.disconnect();
+    // Find the nearest scrollable ancestor (the <main> scroller) and load more
+    // whenever it nears the bottom. A scroll listener is more reliable than an
+    // IntersectionObserver for an internally-scrolling container.
+    let node: HTMLElement | null = el.parentElement;
+    while (node) { const oy = getComputedStyle(node).overflowY; if (oy === "auto" || oy === "scroll") break; node = node.parentElement; }
+    const scroller: HTMLElement | Window = node ?? window;
+    const check = () => {
+      const t = scroller === window ? document.documentElement : (scroller as HTMLElement);
+      if (t.scrollHeight - t.scrollTop - t.clientHeight < 1000) loadMore();
+    };
+    scroller.addEventListener("scroll", check, { passive: true } as AddEventListenerOptions);
+    check();
+    return () => scroller.removeEventListener("scroll", check);
   }, [loadMore]);
 
   return (
@@ -627,13 +688,18 @@ function BrowseView({ locCity, onOpenProduct }: { locCity: string; onOpenProduct
       ) : items.length > 0 ? (
         <>
           <div style={css(GRID)}>
-            {items.map((it) => (
+            {items.filter((it) => matchesFilter(it, filter)).map((it) => (
               <div key={it.id} onClick={() => onOpenProduct(it)}><ProductCard it={it} /></div>
             ))}
             {loadingMore && Array.from({ length: 5 }).map((_, i) => (<CardSkeleton key={`more-${i}`} />))}
           </div>
           <div ref={sentinel} style={css("height:1px")} />
-          {!hasMore && <div style={css("text-align:center;padding:26px 10px;color:var(--muted);font-size:13px")}>That&apos;s everything in {locCity} for now.</div>}
+          {hasMore && (
+            <div style={css("display:flex;justify-content:center;padding:22px 10px")}>
+              <Hoverable as="button" onClick={loadMore} styles={sx("background:var(--paper);border:1.5px solid var(--maroon);color:var(--maroon);border-radius:26px;padding:12px 30px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit", loadingMore && "opacity:.65")} hover="background:#fbf3f7">{loadingMore ? "Loading…" : "Load more listings"}</Hoverable>
+            </div>
+          )}
+          {!hasMore && <div style={css("text-align:center;padding:26px 10px;color:var(--muted);font-size:13px")}>You&apos;ve reached the end — new listings are added every day.</div>}
         </>
       ) : (
         <EmptyState text="We couldn't load inventory just now — try another filter." />
@@ -653,7 +719,7 @@ const CATEGORY_CHILDREN: Record<string, string[]> = {
 };
 
 /* ------------------------------- Category view ------------------------------- */
-function CategoryView({ catName, categorySlug, onOpenProduct }: { catName: string; categorySlug: string; onOpenProduct: (it: Listing) => void }) {
+function CategoryView({ catName, categorySlug, onOpenProduct, filter }: { catName: string; categorySlug: string; onOpenProduct: (it: Listing) => void; filter: FilterState }) {
   const [items, setItems] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -706,7 +772,7 @@ function CategoryView({ catName, categorySlug, onOpenProduct }: { catName: strin
         <div style={css(GRID)}>{Array.from({ length: 15 }).map((_, i) => (<CardSkeleton key={i} />))}</div>
       ) : items.length > 0 ? (
         <div style={css(GRID)}>
-          {items.map((it) => (
+          {items.filter((it) => matchesFilter(it, filter)).map((it) => (
             <div key={it.id} onClick={() => onOpenProduct(it)}><ProductCard it={it} tint="#efe7dc" tint2="#e7dccc" /></div>
           ))}
         </div>
