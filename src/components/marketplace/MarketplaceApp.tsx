@@ -568,7 +568,15 @@ function BrowseView({ locCity, onOpenProduct }: { locCity: string; onOpenProduct
   useEffect(() => {
     const el = sentinel.current;
     if (!el) return;
-    const obs = new IntersectionObserver((es) => { if (es[0]?.isIntersecting) loadMore(); }, { rootMargin: "800px" });
+    // Track the nearest scrollable ancestor (the <main> scroller), not just the
+    // document viewport, so the sentinel fires on internal scroll.
+    let root: HTMLElement | null = el.parentElement;
+    while (root) {
+      const oy = getComputedStyle(root).overflowY;
+      if (oy === "auto" || oy === "scroll") break;
+      root = root.parentElement;
+    }
+    const obs = new IntersectionObserver((es) => { if (es[0]?.isIntersecting) loadMore(); }, { root, rootMargin: "600px" });
     obs.observe(el);
     return () => obs.disconnect();
   }, [loadMore]);

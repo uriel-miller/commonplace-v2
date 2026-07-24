@@ -134,7 +134,7 @@ export function ProductPage({ item, onBack, onOpenCategory, onMakeOffer, onOpenP
   }
 
   return (
-    <div style={css("max-width:1120px;margin:0 auto;padding:20px 22px 80px")}>
+    <div style={css("max-width:1340px;margin:0 auto;padding:4px 22px 80px")}>
       {/* Breadcrumb */}
       <div style={css("display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);margin-bottom:18px;flex-wrap:wrap")}>
         <Hoverable as="span" onClick={onBack} styles="cursor:pointer" hover="color:var(--ink)">Home</Hoverable>

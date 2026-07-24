@@ -120,7 +120,7 @@ export function ProductExtras({ item, onPlayVideo }: { item: Listing; onPlayVide
   }
 
   return (
-    <div style={css("max-width:1120px;margin:0 auto;padding:0 22px")}>
+    <div style={css("max-width:1340px;margin:0 auto;padding:0 22px")}>
       {/* ---------------- 1. How Commonplace Compares ---------------- */}
       <section style={css("margin-top:48px")}>
         <div style={css(EYEBROW)}>The Comparison</div>
@@ -253,8 +253,10 @@ export function ProductExtras({ item, onPlayVideo }: { item: Listing; onPlayVide
               styles="cursor:pointer"
               hover="transform:translateY(-2px)"
             >
-              <div style={sx("width:100%;aspect-ratio:16/10;border-radius:14px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden", { background: "linear-gradient(150deg,#7A2740,#420926)" })}>
-                <span style={css("width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.16);border:1.5px solid rgba(255,255,255,.5);display:flex;align-items:center;justify-content:center")}>
+              <div style={css("width:100%;aspect-ratio:16/10;border-radius:14px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;background:#2a1420")}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`https://img.youtube.com/vi/${v.id}/hqdefault.jpg`} alt={v.title} loading="lazy" style={css("position:absolute;inset:0;width:100%;height:100%;object-fit:cover")} />
+                <span style={css("position:relative;width:54px;height:54px;border-radius:50%;background:rgba(0,0,0,.5);border:2px solid rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center")}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" style={css("margin-left:3px")}>
                     <path d="M6 4l14 8-14 8z" />
                   </svg>

@@ -114,6 +114,11 @@ export const ARTICLES: Article[] = [
   { name: "TechCrunch", quote: "Rethinking how big items get resold.", url: "#", font: "'Inter Tight',sans-serif" },
   { name: "The Verge", quote: "White-glove resale, done right.", url: "#", font: "'Newsreader',serif" },
   { name: "Forbes", quote: "A marketplace built on trust.", url: "#", font: "'Newsreader',serif" },
+  { name: "Business Insider", quote: "The $1-to-reserve model is catching on.", url: "#", font: "'Inter Tight',sans-serif" },
+  { name: "Fast Company", quote: "Making big-ticket resale feel effortless.", url: "#", font: "'Inter Tight',sans-serif" },
+  { name: "Bloomberg", quote: "White-glove logistics for the resale era.", url: "#", font: "'Newsreader',serif" },
+  { name: "Axios", quote: "Where big things actually change hands.", url: "#", font: "'Inter Tight',sans-serif" },
+  { name: "Modern Retail", quote: "Delivery-first resale, done right.", url: "#", font: "'Newsreader',serif" },
 ];
 
 export interface Condition {
