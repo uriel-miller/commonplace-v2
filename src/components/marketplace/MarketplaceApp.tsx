@@ -305,9 +305,13 @@ export function MarketplaceApp() {
                 <div style={css("display:flex;flex-direction:column;gap:7px")}>
                   {LEARN_VIDEOS.map((v) => (
                     <Hoverable key={v.title} onClick={() => setVideoId(v.id)} styles={`display:flex;gap:10px;align-items:center;padding:7px;border:1px solid var(--line);border-left:4px solid ${v.accent};border-radius:10px;cursor:pointer;transition:box-shadow .15s`} hover="box-shadow:0 6px 16px rgba(60,10,35,.1)">
-                      <div style={sx("width:42px;height:42px;flex:0 0 auto;border-radius:7px;display:flex;align-items:center;justify-content:center", { background: `repeating-linear-gradient(135deg,${v.g1} 0 8px,${v.g2} 8px 16px)` })}>
-                        <span style={css("width:21px;height:21px;border-radius:50%;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center")}>
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill={v.accent}><path d="M8 5v14l11-7z" /></svg>
+                      <div style={css("width:52px;height:42px;flex:0 0 auto;border-radius:7px;overflow:hidden;position:relative;background:#2a1420")}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={`https://img.youtube.com/vi/${v.id}/default.jpg`} alt="" loading="lazy" style={css("position:absolute;inset:0;width:100%;height:100%;object-fit:cover")} />
+                        <span style={css("position:absolute;inset:0;display:flex;align-items:center;justify-content:center")}>
+                          <span style={css("width:19px;height:19px;border-radius:50%;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center")}>
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z" /></svg>
+                          </span>
                         </span>
                       </div>
                       <div style={css("min-width:0")}>
@@ -635,6 +639,10 @@ function BrowseView({ locCity, onOpenProduct }: { locCity: string; onOpenProduct
    "Vehicles" page shows cars + golf carts + scooters + ATVs + RVs together). */
 const CATEGORY_CHILDREN: Record<string, string[]> = {
   vehicles: ["cars", "golf-carts", "scooters", "atv", "rv-motorhome", "motorcycles", "dirt-bike", "jet-skis", "mini-moke", "camper-vans", "lawn-mower", "street-rod"],
+  // Treadmills page also surfaces Peloton Tread / Tread+ and other tread brands.
+  treadmills: ["treadmills", "peloton-tread", "peloton-tread-plus", "nordictrack-treadmill", "proform-treadmill", "bowflex-treadclimber"],
+  // Rowers page surfaces Peloton Row + Hydrow.
+  rower: ["rower", "peloton-row", "hydrow-pro-rowing-machine", "ergatta-rower"],
 };
 
 /* ------------------------------- Category view ------------------------------- */
