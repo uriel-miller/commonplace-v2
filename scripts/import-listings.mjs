@@ -105,7 +105,7 @@ function normalize(p) {
 
 // Utility/service SKUs that live in the catalog but aren't sellable listings.
 const JUNK_RX =
-  /\b(warranty|check[-\s]?in|pre[-\s]?pickup|deposit|reservation|add[-\s]?on|balance|remainder|test\s?drive|handling fee|shipping fee|placeholder|sample product)\b/i;
+  /\b(warranty|check[-\s]?in|pre[-\s]?pickup|deposit|reservation|add[-\s]?on|balance|remainder|test\s?drive|handling fee|shipping fee|placeholder|sample product)\b|promotion for listing/i;
 
 function isRealListing(l) {
   if (l.categorySlug === "addons" || l.categoryName.toLowerCase() === "addons") return false;
