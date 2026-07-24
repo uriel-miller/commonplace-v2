@@ -5,15 +5,16 @@ import { css, sx } from "@/lib/design/css";
 import { Pin } from "@/components/marketplace/icons";
 
 /* ---------------------------------------------------------------------------
-   Pickup-address input backed by the Google Maps JavaScript Places API.
+   Address input with autocomplete, backed by our own /api/places/autocomplete
+   route (server-proxied Google Places). This avoids the Maps JS widget's
+   referrer-allowlist and "Maps JavaScript API not enabled" failure modes — the
+   route only needs the Places web service, which the working key already has.
 
-   - Dynamically injects the Maps JS script (key from NEXT_PUBLIC_GOOGLE_MAPS_KEY).
-   - Attaches a google.maps.places.Autocomplete to the input.
-   - On selection, reports { formatted, lat, lng, placeId } via onSelect.
-   - If the key is absent or the script fails to load, it degrades to a plain
-     controlled text input (no crash, no thrown errors).
-
-   Narrow, dependency-free typings for the slice of the Maps API we touch.
+   - Debounced lookups as the user types (3+ chars).
+   - A styled suggestions dropdown matching the rest of the app.
+   - Keyboard: ↑/↓ to move, Enter to pick, Esc to close.
+   - If the route returns nothing (no key, offline), it degrades to a plain
+     controlled text input — never crashes.
 --------------------------------------------------------------------------- */
 
 export interface AddressSelection {
@@ -23,59 +24,9 @@ export interface AddressSelection {
   placeId: string | null;
 }
 
-interface MapsLatLng {
-  lat(): number;
-  lng(): number;
-}
-interface MapsPlaceResult {
-  formatted_address?: string;
-  place_id?: string;
-  geometry?: { location?: MapsLatLng };
-}
-interface MapsAutocomplete {
-  addListener(event: string, handler: () => void): void;
-  getPlace(): MapsPlaceResult;
-  setFields(fields: string[]): void;
-}
-interface MapsAutocompleteCtor {
-  new (input: HTMLInputElement, opts?: Record<string, unknown>): MapsAutocomplete;
-}
-interface MapsNamespace {
-  maps?: { places?: { Autocomplete?: MapsAutocompleteCtor } };
-}
-
-type MapsWindow = Window & { google?: MapsNamespace };
-
-const SCRIPT_ID = "gmaps-places-js";
-let loaderPromise: Promise<boolean> | null = null;
-
-/** Load the Maps JS once; resolves true if `google.maps.places` is available. */
-function loadMapsScript(key: string): Promise<boolean> {
-  if (typeof window === "undefined") return Promise.resolve(false);
-  const w = window as MapsWindow;
-  if (w.google?.maps?.places?.Autocomplete) return Promise.resolve(true);
-  if (loaderPromise) return loaderPromise;
-
-  loaderPromise = new Promise<boolean>((resolve) => {
-    const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
-    const ready = () => resolve(!!(window as MapsWindow).google?.maps?.places?.Autocomplete);
-    if (existing) {
-      existing.addEventListener("load", ready);
-      existing.addEventListener("error", () => resolve(false));
-      // If it already loaded before this listener attached.
-      if ((window as MapsWindow).google?.maps?.places?.Autocomplete) resolve(true);
-      return;
-    }
-    const script = document.createElement("script");
-    script.id = SCRIPT_ID;
-    script.async = true;
-    script.defer = true;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places`;
-    script.addEventListener("load", ready);
-    script.addEventListener("error", () => resolve(false));
-    document.head.appendChild(script);
-  });
-  return loaderPromise;
+interface Prediction {
+  description: string;
+  placeId: string;
 }
 
 export interface AddressAutocompleteProps {
@@ -91,67 +42,135 @@ const INPUT_FIELD =
   "flex:1;border:none;outline:none;font-size:15px;font-weight:500;color:var(--ink);background:transparent";
 
 export function AddressAutocomplete({ value, onChange, onSelect, placeholder }: AddressAutocompleteProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const onSelectRef = useRef(onSelect);
-  const onChangeRef = useRef(onChange);
   const [focused, setFocused] = useState(false);
-  const [enhanced, setEnhanced] = useState(false);
+  const [preds, setPreds] = useState<Prediction[]>([]);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const [locating, setLocating] = useState(false);
+  const [locErr, setLocErr] = useState<string | null>(null);
+  const justPicked = useRef(false);
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Keep the latest callbacks without re-running the attach effect.
+  // "Locate me" — browser geolocation → server reverse-geocode → fill address.
+  function locateMe() {
+    setLocErr(null);
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocErr("Location isn't available on this device.");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          const r = await fetch(`/api/places/reverse?lat=${latitude}&lng=${longitude}`);
+          const j = (await r.json()) as { address?: string | null };
+          if (j.address) {
+            justPicked.current = true;
+            onChange(j.address);
+            onSelect({ formatted: j.address, lat: latitude, lng: longitude, placeId: null });
+            setOpen(false);
+            setPreds([]);
+          } else {
+            setLocErr("Couldn't find your address — type it in.");
+          }
+        } catch {
+          setLocErr("Couldn't fetch your address — type it in.");
+        } finally {
+          setLocating(false);
+        }
+      },
+      (err) => {
+        setLocating(false);
+        setLocErr(err.code === err.PERMISSION_DENIED ? "Location permission denied — type it in." : "Couldn't get your location — type it in.");
+      },
+      { enableHighAccuracy: true, timeout: 9000, maximumAge: 60000 },
+    );
+  }
+
+  // Debounced autocomplete lookup whenever the typed value changes.
   useEffect(() => {
-    onSelectRef.current = onSelect;
-    onChangeRef.current = onChange;
-  });
+    if (justPicked.current) { justPicked.current = false; return; }
+    const q = value.trim();
+    if (q.length < 3) { setPreds([]); setOpen(false); return; }
+    const ctrl = new AbortController();
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/places/autocomplete?input=${encodeURIComponent(q)}`, { signal: ctrl.signal });
+        const j = (await r.json()) as { predictions?: Prediction[] };
+        const list = Array.isArray(j.predictions) ? j.predictions : [];
+        setPreds(list);
+        setActive(-1);
+        setOpen(list.length > 0);
+      } catch {
+        /* aborted or offline — leave as plain input */
+      }
+    }, 220);
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, [value]);
 
-  useEffect(() => {
-    const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
-    if (!key) return; // Graceful degradation: plain text input.
+  function pick(p: Prediction) {
+    justPicked.current = true;
+    onChange(p.description);
+    onSelect({ formatted: p.description, lat: null, lng: null, placeId: p.placeId || null });
+    setOpen(false);
+    setPreds([]);
+    setActive(-1);
+  }
 
-    let cancelled = false;
-    loadMapsScript(key).then((ok) => {
-      if (cancelled || !ok) return;
-      const el = inputRef.current;
-      const Ctor = (window as MapsWindow).google?.maps?.places?.Autocomplete;
-      if (!el || !Ctor) return;
-
-      const ac = new Ctor(el, {
-        types: ["address"],
-        fields: ["formatted_address", "geometry", "place_id"],
-      });
-      ac.addListener("place_changed", () => {
-        const place = ac.getPlace();
-        const loc = place.geometry?.location;
-        const formatted = place.formatted_address ?? el.value;
-        onChangeRef.current(formatted);
-        onSelectRef.current({
-          formatted,
-          lat: loc ? loc.lat() : null,
-          lng: loc ? loc.lng() : null,
-          placeId: place.place_id ?? null,
-        });
-      });
-      if (!cancelled) setEnhanced(true);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!open || preds.length === 0) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => (i + 1) % preds.length); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => (i <= 0 ? preds.length - 1 : i - 1)); }
+    else if (e.key === "Enter" && active >= 0) { e.preventDefault(); pick(preds[active]); }
+    else if (e.key === "Escape") { setOpen(false); }
+  }
 
   return (
-    <div style={sx(INPUT_WRAP, focused && "border-color:#d9b7c2")}>
-      <Pin size={18} stroke="var(--maroon)" />
-      <input
-        ref={inputRef}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        placeholder={placeholder ?? "Pickup address"}
-        autoComplete={enhanced ? "off" : "street-address"}
-        aria-label="Pickup address"
-        style={css(INPUT_FIELD)}
-      />
+    <div style={css("position:relative")}>
+      <div style={sx(INPUT_WRAP, focused && "border:1px solid #d9b7c2")}>
+        <Pin size={18} stroke="var(--maroon)" />
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={() => { setFocused(true); if (preds.length) setOpen(true); }}
+          onBlur={() => { setFocused(false); blurTimer.current = setTimeout(() => setOpen(false), 160); }}
+          onKeyDown={onKeyDown}
+          placeholder={placeholder ?? "Pickup address"}
+          autoComplete="off"
+          aria-label="Pickup address"
+          aria-autocomplete="list"
+          aria-expanded={open}
+          style={css(INPUT_FIELD)}
+        />
+        <button
+          type="button"
+          onClick={locateMe}
+          disabled={locating}
+          aria-label="Use my current location"
+          title="Use my current location"
+          style={css(`display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;background:var(--putty);border:1px solid var(--line);border-radius:9px;padding:6px 10px;font-size:12px;font-weight:700;color:var(--maroon);cursor:${locating ? "default" : "pointer"};font-family:inherit;white-space:nowrap;opacity:${locating ? ".65" : "1"}`)}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></svg>
+          {locating ? "Locating…" : "Locate me"}
+        </button>
+      </div>
+      {locErr && <div style={css("font-size:11.5px;color:var(--red);margin-top:6px")}>{locErr}</div>}
+      {open && preds.length > 0 && (
+        <div style={css("position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--paper);border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 40px rgba(60,10,35,.16);padding:5px;z-index:60;overflow:hidden")}>
+          {preds.map((p, i) => (
+            <div
+              key={p.placeId || p.description}
+              onMouseDown={(e) => { e.preventDefault(); if (blurTimer.current) clearTimeout(blurTimer.current); pick(p); }}
+              onMouseEnter={() => setActive(i)}
+              style={sx("display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:8px;cursor:pointer;font-size:13.5px;color:var(--ink)", i === active && "background:var(--putty)")}
+            >
+              <Pin size={15} stroke="var(--muted)" />
+              <span style={css("flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{p.description}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -53,6 +53,66 @@ model Listing {
   @@index([updatedAt])
 }
 
+/// Product-analytics event stream (screens, clicks, listing views, funnel steps).
+/// High-write, append-only. Written by /api/track (batched, fail-soft) and read
+/// by the admin analytics dashboard. Keep this lean + heavily indexed.
+model AnalyticsEvent {
+  id         String   @id @default(cuid())
+  /// Stable per-browser id (localStorage) — the "user" across sessions.
+  anonId     String
+  /// Per-tab/session id (resets after 30m idle).
+  sessionId  String
+  /// Signed-in phone/user id when known, else null.
+  userId     String?
+  /// Event category: view | click | funnel | scroll | search | error | custom.
+  type       String
+  /// Event name, e.g. "screen:product", "click:add_to_cart", "sell:step".
+  name       String
+  /// Current app "screen"/view (product, browse, sell, checkout, …).
+  screen     String?
+  /// URL path at the time of the event.
+  path       String?
+  /// Listing id when the event concerns a specific listing.
+  listingId  Int?
+  /// Category slug in context, when relevant.
+  categorySlug String?
+  /// Free-form structured payload (coords, element, funnel step, value, …).
+  props      Json?
+  /// Viewport + referrer + device hints captured once per session.
+  referrer   String?
+  viewportW  Int?
+  viewportH  Int?
+  ts         DateTime @default(now())
+
+  @@index([anonId])
+  @@index([sessionId])
+  @@index([type])
+  @@index([name])
+  @@index([screen])
+  @@index([listingId])
+  @@index([ts])
+}
+
+/// Blog / articles (buying guides, how-tos) ported 1:1 from the live WordPress
+/// REST API by scripts/import-blog.mjs. Read fail-soft by src/lib/blog.ts.
+model BlogPost {
+  id          Int      @id
+  slug        String   @unique
+  title       String
+  /// Short plain-text summary for cards / meta description.
+  excerpt     String
+  /// Full sanitized post HTML.
+  contentHtml String
+  /// Featured image URL, when present.
+  coverImage  String?
+  /// Comma-joined category names (for a light topic label).
+  category    String?
+  publishedAt DateTime
+  updatedAt   DateTime @default(now())
+
+  @@index([publishedAt])
+}
+
 /// Denormalized lookup of distinct categories, used to build browse/filter menus
 /// without scanning the whole listing table. Populated by scripts/import-listings.mjs.
 /// (No FK join is needed: each listing carries its own categoryName/categorySlug,
@@ -132,4 +192,72 @@ model ListingDraft {
   status        String   @default("draft")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+/**
+ * A real marketplace account. Created/looked-up on the first successful OTP
+ * verification, keyed by phone (the login identifier). Email/name fill in later.
+ */
+model User {
+  id        String    @id @default(cuid())
+  phone     String    @unique          // E.164, the login identifier
+  email     String?
+  name      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  sessions  Session[]
+
+  @@index([email])
+}
+
+/** A logged-in session. `token` lives in an httpOnly cookie; rows expire. */
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent String?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/**
+ * A pending one-time login code. The plaintext code is NEVER stored — only a
+ * salted hash. Rows are single-use, rate-limited, and expire in minutes.
+ */
+model OtpCode {
+  id        String   @id @default(cuid())
+  phone     String                    // E.164 the code was sent to
+  codeHash  String                    // sha256(code + phone + secret)
+  attempts  Int      @default(0)      // wrong-guess counter (locks at 5)
+  consumed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([phone])
+  @@index([expiresAt])
+}
+
+/**
+ * Short-lived handoff so a seller can add listing photos from their phone.
+ * The desktop create-listing form opens a session (code shown + optionally
+ * texted), the phone opens /add-photos/{code} and uploads, and the desktop
+ * polls by `token` to pull the photos back into the form.
+ */
+model PhotoSession {
+  id        String   @id @default(cuid())
+  code      String   @unique          // short human/URL code, e.g. "K7QF2P"
+  token     String   @unique          // desktop poll secret (never in the SMS link)
+  phone     String?                   // E.164-ish number the link was texted to
+  photos    Json?                     // string[] of data:image/... URLs
+  status    String   @default("open") // open | closed
+  smsSent   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  expiresAt DateTime
+
+  @@index([expiresAt])
 }

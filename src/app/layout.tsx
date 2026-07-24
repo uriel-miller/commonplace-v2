@@ -36,7 +36,10 @@ export default function RootLayout({
     >
       {/* The marketplace is a full-viewport app shell; the shell manages its
           own internal scrolling, so the document body itself does not scroll. */}
-      <body style={{ height: "100dvh", overflow: "hidden", margin: 0 }}>
+      {/* Body is zoomed to 0.9 (globals.css). `zoom` scales the box but viewport
+          units still resolve to the full viewport, so the height is pre-divided
+          by 0.9 → after the zoom it lands back at exactly one viewport tall. */}
+      <body style={{ height: "calc(100dvh / 0.9)", overflow: "hidden", margin: 0 }}>
         {children}
       </body>
     </html>

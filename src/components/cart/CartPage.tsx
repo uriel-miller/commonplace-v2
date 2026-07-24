@@ -4,6 +4,8 @@ import { useState } from "react";
 import { css, sx, Hoverable } from "@/lib/design/css";
 import { formatPrice, type Listing } from "@/lib/listing";
 import { useCart, type CartItem } from "./CartProvider";
+import { PaymentBadges } from "@/components/marketplace/PaymentBadges";
+import { addonsForCategories, addonToListing, isAddonListing } from "@/lib/addons";
 
 /**
  * Full cart page — a faithful port of the live trycommonplace.com /cart/
@@ -38,16 +40,31 @@ function CartLine({ item, onOpen, first }: { item: CartItem; onOpen?: () => void
   const { listing, qty } = item;
   const img = listing.images?.[0];
   const price = Number.isFinite(listing.priceCents) ? listing.priceCents : 0;
+  const [confirming, setConfirming] = useState(false);
 
   return (
     <div style={sx("display:flex;align-items:center;gap:14px;padding:18px 4px", !first && "border-top:1px solid var(--line)")}>
+      {/* Are-you-sure confirmation before removing */}
+      {confirming && (
+        <div role="presentation" onClick={(e) => { if (e.target === e.currentTarget) setConfirming(false); }}
+          style={css("position:fixed;inset:0;z-index:600;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(25,12,18,.6)")}>
+          <div role="dialog" aria-modal="true" style={css("background:var(--paper);border-radius:18px;padding:24px;max-width:400px;width:100%;box-shadow:0 30px 70px rgba(0,0,0,.35)")}>
+            <div style={css("font-family:'Reckless','Newsreader',serif;font-size:20px;font-weight:600;margin-bottom:6px")}>Remove this item?</div>
+            <p style={css("font-size:14px;color:var(--muted);line-height:1.5;margin-bottom:20px")}>&ldquo;{listing.title}&rdquo; will be removed from your cart.</p>
+            <div style={css("display:flex;gap:10px;justify-content:flex-end")}>
+              <Hoverable as="button" onClick={() => setConfirming(false)} styles="background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:24px;padding:10px 20px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit" hover="border:1px solid #d9b7c2">Keep it</Hoverable>
+              <Hoverable as="button" onClick={() => { remove(listing.id); setConfirming(false); }} styles="background:#A11812;color:#fff;border:none;border-radius:24px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit" hover="filter:brightness(1.1)">Remove</Hoverable>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Remove */}
       <Hoverable
         as="button"
         type="button"
         aria-label={`Remove ${listing.title}`}
         title="Remove"
-        onClick={() => remove(listing.id)}
+        onClick={() => setConfirming(true)}
         styles="width:26px;height:26px;flex:0 0 auto;border:none;background:transparent;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;color:var(--muted)"
         hover="background:var(--putty);color:var(--red)"
       >
@@ -94,7 +111,7 @@ function Row({ label, value, strong, muted }: { label: React.ReactNode; value: R
 
 /* ------------------------------- Cart page ------------------------------- */
 export function CartPage({ onBrowse, onCheckout, onOpenProduct, deliverTo, onChangeAddress, onRequestItem }: CartPageProps) {
-  const { items, count, subtotalCents, dueTodayCents, dueOnDeliveryCents, hydrated } = useCart();
+  const { items, count, subtotalCents, dueTodayCents, dueOnDeliveryCents, hydrated, add, remove } = useCart();
   const [coupon, setCoupon] = useState("");
   const [couponMsg, setCouponMsg] = useState<string | null>(null);
 
@@ -154,6 +171,48 @@ export function CartPage({ onBrowse, onCheckout, onOpenProduct, deliverTo, onCha
               hover="background:var(--putty)">Apply coupon</Hoverable>
           </div>
           {couponMsg && <div style={css("font-size:12.5px;color:var(--green);margin-top:8px")}>{couponMsg}</div>}
+
+          {/* Always-visible add-ons (protection + accessories) for the cart's items */}
+          {(() => {
+            const realCats = items.filter((it) => !isAddonListing(it.listing)).map((it) => `${it.listing.categorySlug ?? ""} ${it.listing.categoryName ?? ""}`);
+            let addons: ReturnType<typeof addonsForCategories> = [];
+            try { addons = realCats.length ? addonsForCategories(realCats) : []; } catch { addons = []; }
+            if (addons.length === 0) return null;
+            const inCart = new Set(items.map((it) => it.listing.id));
+            const tile = (k: string) => k === "warranty" ? { background: "var(--tint)", color: "var(--maroon)" } : k === "service" ? { background: "var(--greenBg)", color: "var(--green)" } : { background: "var(--blueBg)", color: "var(--blueInk)" };
+            return (
+              <div style={css("margin-top:30px")}>
+                <div style={css("font-size:16px;font-weight:800;margin-bottom:4px")}>Complete your setup</div>
+                <div style={css("font-size:13px;color:var(--muted);margin-bottom:14px")}>Protection and accessories, delivered with your order.</div>
+                <div style={css("display:flex;flex-direction:column;gap:10px")}>
+                  {addons.map((a) => {
+                    const listing = addonToListing(a);
+                    const added = inCart.has(listing.id);
+                    return (
+                      <div key={a.key} style={sx("display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px", added ? { border: "1.5px solid var(--maroon)", background: "#fbf3f7" } : { border: "1px solid var(--line)", background: "var(--paper)" })}>
+                        <div style={sx("width:46px;height:46px;flex:0 0 auto;border-radius:11px;display:flex;align-items:center;justify-content:center", tile(a.kind))}>
+                          {a.kind === "warranty"
+                            ? <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></svg>
+                            : a.kind === "service"
+                            ? <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+                            : <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round"><path d="M20.6 8.4 12 3 3.4 8.4 12 13.8l8.6-5.4Z" /><path d="M3.4 8.4V15.6L12 21l8.6-5.4V8.4" /><path d="M12 13.8V21" /></svg>}
+                        </div>
+                        <div style={css("flex:1;min-width:0")}>
+                          <div style={css("font-size:13.5px;font-weight:700;color:var(--ink)")}>{a.title} <span style={css("color:var(--muted)")}>+{formatPrice(a.priceCents)}</span></div>
+                          <div style={css("font-size:12px;color:var(--muted);line-height:1.35;margin-top:2px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical")}>{a.blurb}</div>
+                        </div>
+                        <Hoverable as="button" onClick={() => (added ? remove(listing.id) : add(listing))}
+                          styles={sx("flex:0 0 auto;border-radius:20px;padding:8px 15px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit", added ? { background: "var(--maroon)", color: "#fff", border: "1px solid var(--maroon)" } : { background: "var(--paper)", color: "var(--maroon)", border: "1.5px solid var(--maroon)" })}
+                          hover={added ? "filter:brightness(1.08)" : "background:#fbf3f7"}>
+                          {added ? "✓ Added" : "+ Add"}
+                        </Hoverable>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* ---------------- Right: summary ---------------- */}
@@ -218,14 +277,12 @@ export function CartPage({ onBrowse, onCheckout, onOpenProduct, deliverTo, onCha
           </Hoverable>
 
           {/* Trust badges */}
-          <div style={css("display:flex;align-items:center;justify-content:center;gap:14px;margin-top:8px;flex-wrap:wrap;opacity:.85")}>
+          <div style={css("display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:10px")}>
             <span style={css("display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--muted)")}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
-              100% SECURE
+              100% SECURE CHECKOUT
             </span>
-            <span style={css("font-size:12px;font-weight:800;color:#1a1f71")}>VISA</span>
-            <span style={css("font-size:12px;font-weight:800;color:#eb001b")}>Master<span style={css("color:#f79e1b")}>card</span></span>
-            <span style={css("font-size:12px;font-weight:800;color:#003087")}>Pay<span style={css("color:#009cde")}>Pal</span></span>
+            <PaymentBadges />
           </div>
         </div>
       </div>

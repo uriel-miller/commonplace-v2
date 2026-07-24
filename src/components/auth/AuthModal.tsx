@@ -7,9 +7,10 @@ import { css, sx, Hoverable } from "@/lib/design/css";
  * Phone-number + one-time-code sign-up / log-in modal — matches how the live
  * Commonplace marketplace authenticates (phone → texted 6-digit code).
  *
- * Two-step state machine ("phone" → "code"). Every network touch is a fail-soft
- * stub wrapped in try/catch: the backend is a stub, so nothing here can throw or
- * block the user from advancing. White card, plum accents, on-brand.
+ * Two-step state machine ("phone" → "code"), backed by the real /api/auth/otp
+ * endpoint (texted code via Quo, hashed at rest, httpOnly session cookie on
+ * verify). Wrong codes surface a real error. When SMS isn't wired (staging /
+ * dev) the server returns a devCode so the flow stays testable. On-brand card.
  */
 
 const PLUM = "#630E3D";
@@ -62,6 +63,8 @@ export function AuthModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [resent, setResent] = useState(false);
+  // Prefilled in non-production when SMS isn't wired, so staging is testable.
+  const [devCode, setDevCode] = useState("");
 
   const phoneRef = useRef<HTMLInputElement | null>(null);
   const codeRef = useRef<HTMLInputElement | null>(null);
@@ -75,6 +78,7 @@ export function AuthModal({
       setLoading(false);
       setError("");
       setResent(false);
+      setDevCode("");
     }
   }, [open]);
 
@@ -106,17 +110,18 @@ export function AuthModal({
 
   if (!open) return null;
 
-  async function sendCode(): Promise<boolean> {
+  async function sendCode(): Promise<{ ok: boolean; error?: string; devCode?: string }> {
     try {
-      await fetch("/api/auth/otp", {
+      const res = await fetch("/api/auth/otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "send", phone }),
+        body: JSON.stringify({ action: "send", phone: digitsOnly(phone) }),
       });
+      const data = (await res.json()) as { ok?: boolean; error?: string; devCode?: string };
+      return { ok: res.ok && !!data.ok, error: data.error, devCode: data.devCode };
     } catch {
-      /* stub — ignore any failure */
+      return { ok: false, error: "Network error. Please try again." };
     }
-    return true;
   }
 
   async function handleSend() {
@@ -126,13 +131,14 @@ export function AuthModal({
       return;
     }
     setLoading(true);
-    try {
-      await sendCode();
-    } catch {
-      /* fail-soft */
-    }
+    const res = await sendCode();
     setLoading(false);
-    setCode("");
+    if (!res.ok) {
+      setError(res.error || "Could not send a code. Please try again.");
+      return;
+    }
+    setCode(res.devCode ?? "");
+    setDevCode(res.devCode ?? "");
     setStep("code");
   }
 
@@ -143,17 +149,25 @@ export function AuthModal({
       return;
     }
     setLoading(true);
+    let ok = false;
+    let msg = "";
     try {
-      await fetch("/api/auth/otp", {
+      const res = await fetch("/api/auth/otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "verify", phone, code: digitsOnly(code) }),
+        body: JSON.stringify({ action: "verify", phone: digitsOnly(phone), code: digitsOnly(code) }),
       });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      ok = res.ok && !!data.ok;
+      msg = data.error || "";
     } catch {
-      /* stub — verification is faked client-side */
+      msg = "Network error. Please try again.";
     }
     setLoading(false);
-    // Regardless of the (stubbed) response, 6 valid digits authenticates.
+    if (!ok) {
+      setError(msg || "That code is not correct.");
+      return;
+    }
     try { onAuthed(phone); } catch { /* ignore */ }
     try { onClose(); } catch { /* ignore */ }
   }
@@ -161,7 +175,9 @@ export function AuthModal({
   async function handleResend() {
     setError("");
     setResent(false);
-    try { await sendCode(); } catch { /* ignore */ }
+    const res = await sendCode();
+    if (!res.ok) { setError(res.error || "Could not resend. Please try again."); return; }
+    if (res.devCode) { setCode(res.devCode); setDevCode(res.devCode); }
     setResent(true);
     try {
       setTimeout(() => setResent(false), 2600);
@@ -174,7 +190,7 @@ export function AuthModal({
   const canVerify = digitsOnly(code).length === 6;
 
   const btnBase =
-    "width:100%;height:52px;border:0;border-radius:12px;font-family:inherit;font-size:16px;font-weight:700;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:filter .14s,opacity .14s";
+    "width:100%;height:60px;border:0;border-radius:14px;font-family:inherit;font-size:17px;font-weight:800;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:filter .14s,opacity .14s";
 
   return (
     <div
@@ -197,7 +213,7 @@ export function AuthModal({
         aria-modal="true"
         aria-label="Sign in or sign up"
         style={css(
-          "position:relative;width:100%;max-width:400px;background:var(--paper);border-radius:18px;box-shadow:0 30px 80px rgba(0,0,0,.35);animation:cmpAuthScale .2s cubic-bezier(.16,1,.3,1)",
+          "position:relative;width:100%;max-width:452px;background:var(--paper);border-radius:24px;box-shadow:0 30px 80px rgba(0,0,0,.35);animation:cmpAuthScale .2s cubic-bezier(.16,1,.3,1)",
         )}
       >
         {/* Round × close */}
@@ -212,15 +228,15 @@ export function AuthModal({
           ×
         </button>
 
-        <div style={css("padding:34px 28px 26px")}>
+        <div style={css("padding:40px 34px 32px")}>
           {/* Brand mark */}
           <div
             style={sx(
-              "width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:18px",
+              "width:56px;height:56px;border-radius:15px;display:flex;align-items:center;justify-content:center;margin-bottom:22px",
               { background: PLUM },
             )}
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+            <svg width="29" height="29" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
               <path d="M4 8.5 12 4l8 4.5v7L12 20l-8-4.5v-7Z" />
               <path d="M4 8.5 12 13l8-4.5" />
               <path d="M12 13v7" />
@@ -229,14 +245,14 @@ export function AuthModal({
 
           {step === "phone" ? (
             <>
-              <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:26px;font-weight:600;color:var(--ink);margin-bottom:6px;letter-spacing:-.01em")}>
+              <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:30px;font-weight:600;color:var(--ink);margin-bottom:8px;letter-spacing:-.01em")}>
                 Sign in or sign up
               </h2>
-              <p style={css("font-size:14px;color:var(--muted);line-height:1.5;margin-bottom:22px")}>
+              <p style={css("font-size:15.5px;color:var(--muted);line-height:1.5;margin-bottom:26px")}>
                 Enter your phone number and we&rsquo;ll text you a code.
               </p>
 
-              <label style={css("display:block;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:8px")}>
+              <label style={css("display:block;font-size:13px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:9px")}>
                 Phone number
               </label>
               <input
@@ -252,7 +268,7 @@ export function AuthModal({
                 }}
                 onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
                 style={sx(
-                  "width:100%;height:52px;padding:0 16px;border-radius:12px;font-family:inherit;font-size:17px;color:var(--ink);background:var(--paper);outline:none;transition:border-color .14s,box-shadow .14s",
+                  "width:100%;height:60px;padding:0 18px;border-radius:14px;font-family:inherit;font-size:18px;color:var(--ink);background:var(--paper);outline:none;transition:border-color .14s,box-shadow .14s",
                   error
                     ? { border: "1.5px solid var(--red)" }
                     : { border: "1.5px solid var(--line)" },
@@ -279,18 +295,23 @@ export function AuthModal({
                 </Hoverable>
               </div>
 
-              <p style={css("font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:14px;text-align:center")}>
+              <p style={css("font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:18px;text-align:center")}>
                 By continuing you agree to our Terms &amp; Privacy Policy.
               </p>
             </>
           ) : (
             <>
-              <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:26px;font-weight:600;color:var(--ink);margin-bottom:6px;letter-spacing:-.01em")}>
+              <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:30px;font-weight:600;color:var(--ink);margin-bottom:8px;letter-spacing:-.01em")}>
                 Enter your code
               </h2>
-              <p style={css("font-size:14px;color:var(--muted);line-height:1.5;margin-bottom:22px")}>
+              <p style={css("font-size:15.5px;color:var(--muted);line-height:1.5;margin-bottom:26px")}>
                 Sent to {maskPhone(phone)}
               </p>
+              {devCode && (
+                <div style={css("margin:-14px 0 22px;padding:8px 12px;border-radius:10px;background:var(--yellowBg);border:1px solid #ecd9a3;font-size:12.5px;color:#7a5a12")}>
+                  Testing mode (SMS not wired): your code is <b>{devCode}</b>
+                </div>
+              )}
 
               <input
                 ref={codeRef}

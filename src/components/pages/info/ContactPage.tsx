@@ -98,23 +98,20 @@ function ContactForm() {
           "font-family:'Reckless','Newsreader',serif;font-weight:600;font-size:1.35rem;color:var(--ink);margin:0 0 4px",
         )}
       >
-        Send us a message
+        Get in touch with us
       </h3>
       <p style={css("margin:0 0 20px;font-size:0.95rem;line-height:1.6;color:var(--muted)")}>
         We usually reply within one business day.
       </p>
 
       <form>
-        <div style={css("display:grid;grid-template-columns:1fr 1fr;gap:0 16px")}>
-          <Field id="name" label="Full name" placeholder="Jordan Rivera" />
-          <Field id="phone" label="Phone" type="tel" placeholder="(858) 555-0142" />
-        </div>
-        <Field id="email" label="Email" type="email" placeholder="you@email.com" />
+        <Field id="name" label="Your name" placeholder="Jordan Rivera" />
+        <Field id="email" label="Your email" type="email" placeholder="you@email.com" />
         <Field id="subject" label="Subject" placeholder="How can we help?" />
 
         <div style={css("margin:0 0 20px")}>
           <label htmlFor="message" style={css(LABEL)}>
-            Message
+            Your message <span style={css("color:var(--muted);font-weight:400")}>(optional)</span>
           </label>
           <textarea
             id="message"

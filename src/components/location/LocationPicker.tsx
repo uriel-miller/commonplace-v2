@@ -213,6 +213,16 @@ export function LocationPicker({ city, onCity, onConfirm }: LocationPickerProps)
   const [focused, setFocused] = useState(false);
   const [locating, setLocating] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // Local input text — the committed "Deliver to" label only changes on Update,
+  // never on every keystroke (that leaked partial/garbage values into the label).
+  const [text, setText] = useState(city);
+  // Custom autocomplete (server-proxied Places) — replaces Google's pac-container
+  // widget, which rendered its dropdown on top of the input inside the modal.
+  const [preds, setPreds] = useState<{ description: string; placeId: string }[]>([]);
+  const [acOpen, setAcOpen] = useState(false);
+  const [acActive, setAcActive] = useState(-1);
+  const justPicked = useRef(false);
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Draw/refresh the marker + free-delivery circle and frame them.
   const placeAt = (lat: number, lng: number) => {
@@ -260,8 +270,58 @@ export function LocationPicker({ city, onCity, onConfirm }: LocationPickerProps)
 
   const commit = (lat: number, lng: number, cityStr: string) => {
     selRef.current = { city: cityStr, lat, lng };
-    if (cityStr) onCityRef.current(cityStr);
+    if (cityStr) setText(cityStr); // reflect in the input, but don't commit the label yet
     placeAt(lat, lng);
+  };
+
+  // Debounced server-proxied Places autocomplete as the user types.
+  useEffect(() => {
+    if (justPicked.current) { justPicked.current = false; return; }
+    const q = text.trim();
+    // A bare 5-digit ZIP: geocode it directly to "City, ST". Google's address
+    // autocomplete otherwise reads "19004" as a house number and returns streets.
+    if (/^\d{5}$/.test(q)) {
+      const geocoder = geocoderRef.current;
+      if (!geocoder) { setPreds([]); setAcOpen(false); return; }
+      const t = setTimeout(() => {
+        geocoder.geocode({ address: `${q}, USA` }, (results, gStatus) => {
+          if (gStatus !== "OK" || !results || !results[0]) { setPreds([]); setAcOpen(false); return; }
+          const loc = results[0].geometry?.location;
+          const cityStr = cityFromComponents(results[0].address_components) || results[0].formatted_address || q;
+          if (loc) { selRef.current = { city: cityStr, lat: loc.lat(), lng: loc.lng() }; placeAt(loc.lat(), loc.lng()); }
+          setPreds([{ description: cityStr, placeId: "" }]); setAcActive(0); setAcOpen(true);
+        });
+      }, 250);
+      return () => clearTimeout(t);
+    }
+    if (q.length < 3) { setPreds([]); setAcOpen(false); return; }
+    const ctrl = new AbortController();
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/places/autocomplete?input=${encodeURIComponent(q)}`, { signal: ctrl.signal });
+        const j = (await r.json()) as { predictions?: { description: string; placeId: string }[] };
+        const list = Array.isArray(j.predictions) ? j.predictions : [];
+        setPreds(list); setAcActive(-1); setAcOpen(list.length > 0);
+      } catch { /* aborted / offline — stay a plain input */ }
+    }, 220);
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, [text]);
+
+  // Pick a suggestion: fill the field, geocode it, recenter the map.
+  const pickPrediction = (p: { description: string; placeId: string }) => {
+    justPicked.current = true;
+    setText(p.description);
+    setAcOpen(false); setPreds([]); setAcActive(-1);
+    selRef.current = { city: p.description, lat: selRef.current.lat, lng: selRef.current.lng };
+    const geocoder = geocoderRef.current;
+    if (geocoder) {
+      geocoder.geocode({ address: p.description }, (results, gStatus) => {
+        if (gStatus !== "OK" || !results || !results[0]) return;
+        const loc = results[0].geometry?.location;
+        const cityStr = cityFromComponents(results[0].address_components) || p.description;
+        if (loc) { selRef.current = { city: cityStr, lat: loc.lat(), lng: loc.lng() }; setText(cityStr); placeAt(loc.lat(), loc.lng()); }
+      });
+    }
   };
 
   // One-time: load Maps, build the map + autocomplete + geocoder.
@@ -294,24 +354,8 @@ export function LocationPicker({ city, onCity, onConfirm }: LocationPickerProps)
         mapRef.current = map;
         if (g.Geocoder) geocoderRef.current = new g.Geocoder();
 
-        // Places Autocomplete on the city input.
-        const el = inputRef.current;
-        const AC = g.places?.Autocomplete;
-        if (el && AC) {
-          const ac = new AC(el, {
-            types: ["(cities)"],
-            componentRestrictions: { country: "us" },
-            fields: ["name", "formatted_address", "address_components", "geometry"],
-          });
-          ac.addListener("place_changed", () => {
-            const place = ac.getPlace();
-            const loc = place.geometry?.location;
-            if (!loc) return;
-            const cityStr =
-              cityFromComponents(place.address_components) || place.name || place.formatted_address || el.value;
-            commit(loc.lat(), loc.lng(), cityStr);
-          });
-        }
+        // Autocomplete uses our /api/places route + a custom dropdown (below),
+        // so no Google pac-container is attached to the input.
 
         setStatus("ready");
 
@@ -370,9 +414,31 @@ export function LocationPicker({ city, onCity, onConfirm }: LocationPickerProps)
     );
   };
 
+  const commitFinal = (cityStr: string, lat: number | null, lng: number | null) => {
+    onCityRef.current(cityStr);
+    onConfirmRef.current({ city: cityStr, lat, lng });
+  };
+
   const confirm = () => {
     const s = selRef.current;
-    onConfirmRef.current({ city: city.trim() || s.city, lat: s.lat, lng: s.lng });
+    const raw = text.trim();
+    // Already a "City, ST" (from autocomplete / typing) → commit as-is.
+    const looksLikeCityState = /,\s*[A-Za-z]{2}\b/.test(raw);
+    const geocoder = geocoderRef.current;
+    if (raw && !looksLikeCityState && geocoder) {
+      // A bare ZIP or city name — resolve it to "City, ST" before committing.
+      geocoder.geocode({ address: raw }, (results, gStatus) => {
+        if (gStatus === "OK" && results && results[0]) {
+          const resolved = cityFromComponents(results[0].address_components) || results[0].formatted_address || raw;
+          const loc = results[0].geometry?.location;
+          commitFinal(resolved, loc ? loc.lat() : s.lat, loc ? loc.lng() : s.lng);
+        } else {
+          commitFinal(raw, s.lat, s.lng);
+        }
+      });
+      return;
+    }
+    commitFinal(raw || s.city || city.trim(), s.lat, s.lng);
   };
 
   const shipNote =
@@ -382,23 +448,49 @@ export function LocationPicker({ city, onCity, onConfirm }: LocationPickerProps)
 
   return (
     <div>
-      {/* City input (Autocomplete attaches here when the map is ready). */}
-      <div style={sx(INPUT_WRAP, focused && "border-color:#d9b7c2")}>
-        <Pin size={18} stroke="var(--maroon)" />
-        <input
-          ref={inputRef}
-          value={city}
-          onChange={(e) => onCity(e.target.value)}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") e.preventDefault();
-          }}
-          placeholder="City, state"
-          aria-label="Delivery city"
-          autoComplete="off"
-          style={css(INPUT_FIELD)}
-        />
+      {/* City input with a custom suggestions dropdown (no Google pac-container). */}
+      <div style={css("position:relative")}>
+        <div style={sx(INPUT_WRAP, focused && "border:1px solid #d9b7c2")}>
+          <Pin size={18} stroke="var(--maroon)" />
+          <input
+            ref={inputRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onFocus={() => { setFocused(true); if (preds.length) setAcOpen(true); }}
+            onBlur={() => { setFocused(false); blurTimer.current = setTimeout(() => setAcOpen(false), 160); }}
+            onKeyDown={(e) => {
+              if (acOpen && preds.length) {
+                if (e.key === "ArrowDown") { e.preventDefault(); setAcActive((i) => (i + 1) % preds.length); return; }
+                if (e.key === "ArrowUp") { e.preventDefault(); setAcActive((i) => (i <= 0 ? preds.length - 1 : i - 1)); return; }
+                if (e.key === "Enter" && acActive >= 0) { e.preventDefault(); pickPrediction(preds[acActive]); return; }
+                if (e.key === "Escape") { setAcOpen(false); return; }
+              }
+              // Enter commits the typed value (a ZIP is geocoded to "City, ST").
+              if (e.key === "Enter") { e.preventDefault(); confirm(); }
+            }}
+            placeholder="City, state or ZIP"
+            aria-label="Delivery city"
+            autoComplete="off"
+            aria-autocomplete="list"
+            aria-expanded={acOpen}
+            style={css(INPUT_FIELD)}
+          />
+        </div>
+        {acOpen && preds.length > 0 && (
+          <div style={css("position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--paper);border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 40px rgba(60,10,35,.16);padding:5px;z-index:80;overflow:hidden")}>
+            {preds.map((p, i) => (
+              <div
+                key={p.placeId || p.description}
+                onMouseDown={(e) => { e.preventDefault(); if (blurTimer.current) clearTimeout(blurTimer.current); pickPrediction(p); }}
+                onMouseEnter={() => setAcActive(i)}
+                style={sx("display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:8px;cursor:pointer;font-size:13.5px;color:var(--ink)", i === acActive && "background:var(--putty)")}
+              >
+                <Pin size={15} stroke="var(--muted)" />
+                <span style={css("flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{p.description}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Use-my-location */}

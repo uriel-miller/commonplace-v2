@@ -57,6 +57,8 @@ const NAV: { key: TabKey; label: string }[] = [
 export interface AccountPageProps {
   /** Optional "back to browse" affordance used by the shell. */
   onBack?: () => void;
+  /** Ends the real server session (clears the httpOnly cookie). */
+  onLogout?: () => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -104,7 +106,7 @@ function GhostButton({ children, onClick }: { children: React.ReactNode; onClick
       as="button"
       onClick={onClick}
       styles="display:inline-flex;align-items:center;gap:7px;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:9px 15px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap"
-      hover="border-color:#d9b7c2;box-shadow:0 4px 12px rgba(60,10,35,.08)"
+      hover="border:1px solid #d9b7c2;box-shadow:0 4px 12px rgba(60,10,35,.08)"
     >
       {children}
     </Hoverable>
@@ -181,7 +183,7 @@ function Thumb({ src, size = 46 }: { src: string | null; size?: number }) {
 /* Page                                                               */
 /* ------------------------------------------------------------------ */
 
-export function AccountPage({ onBack }: AccountPageProps = {}) {
+export function AccountPage({ onBack, onLogout }: AccountPageProps = {}) {
   const [tab, setTab] = useState<TabKey>("dashboard");
   const [loggedOut, setLoggedOut] = useState(false);
 
@@ -217,7 +219,7 @@ export function AccountPage({ onBack }: AccountPageProps = {}) {
                 );
               })}
             </div>
-            <Hoverable as="span" onClick={() => setLoggedOut(true)} styles="padding-bottom:13px;font-size:14px;font-weight:600;color:var(--ink);text-decoration:underline;cursor:pointer" hover="color:var(--maroon)">Logout</Hoverable>
+            <Hoverable as="span" onClick={() => { setLoggedOut(true); try { onLogout?.(); } catch { /* ignore */ } }} styles="padding-bottom:13px;font-size:14px;font-weight:600;color:var(--ink);text-decoration:underline;cursor:pointer" hover="color:var(--maroon)">Logout</Hoverable>
           </div>
         </div>
       </div>

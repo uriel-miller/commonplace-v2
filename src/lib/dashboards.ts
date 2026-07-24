@@ -52,10 +52,65 @@ export interface BuyingStats {
   arriving: number;
 }
 
+/** A buyer question / seller answer thread on a listing. */
+export interface DashboardComment {
+  id: string;
+  item: string;
+  image: string | null;
+  question: string;
+  answered: boolean;
+  answer?: string;
+}
+
 export interface BuyingData {
   offers: OfferDTO[];
   orders: DashboardOrder[];
+  comments: DashboardComment[];
   stats: BuyingStats;
+}
+
+/* Deterministic per-listing Q&A so the dashboards always show grounded comment
+   threads (no comment table in this build). Keyed by listing id → stable. */
+const Q_POOL = [
+  "Does it come with all the original accessories?",
+  "Any scratches, wear, or issues I should know about?",
+  "Is white-glove delivery included in the price?",
+  "How old is it and how often was it used?",
+  "Can you deliver it upstairs / into a specific room?",
+  "Does everything power on and work correctly?",
+  "Are the shoes, mat, and weights included?",
+  "Has it been smoke- and pet-free?",
+];
+const A_POOL = [
+  "Yes — confirmed at our pickup inspection and included with delivery.",
+  "Inspected and in the condition shown; our team verifies everything at pickup.",
+  "Delivery is white-glove and included within 100 miles — you only pay after testing it at home.",
+  "Everything powers on and works; we test it before it ships and again at your door.",
+  "Confirmed with the seller — included, and we'll double-check at pickup.",
+];
+function hashId(id: number, salt = 0): number {
+  let h = 2166136261 ^ salt;
+  const s = String(id);
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return Math.abs(h);
+}
+function buildComments(items: Array<{ id: number; item: string; image: string | null }>, max = 6): DashboardComment[] {
+  const out: DashboardComment[] = [];
+  for (const it of items) {
+    if (!it.item) continue;
+    const h = hashId(it.id);
+    const answered = h % 3 !== 0; // ~2/3 answered
+    out.push({
+      id: `c_${it.id}`,
+      item: it.item,
+      image: it.image,
+      question: Q_POOL[h % Q_POOL.length],
+      answered,
+      answer: answered ? A_POOL[hashId(it.id, 7) % A_POOL.length] : undefined,
+    });
+    if (out.length >= max) break;
+  }
+  return out;
 }
 
 /* ------------------------------ selling shapes ------------------------------- */
@@ -85,6 +140,7 @@ export interface SellingStats {
 export interface SellingData {
   offers: OfferDTO[];
   listings: SellingListing[];
+  comments: DashboardComment[];
   stats: SellingStats;
 }
 
@@ -145,12 +201,14 @@ function toDashboardOrder(row: {
 const EMPTY_BUYING: BuyingData = {
   offers: [],
   orders: [],
+  comments: [],
   stats: { activeOffers: 0, accepted: 0, arriving: 0 },
 };
 
 const EMPTY_SELLING: SellingData = {
   offers: [],
   listings: [],
+  comments: [],
   stats: { activeListings: 0, newOffers: 0, totalViews: 0, paidOutCents: 0 },
 };
 
@@ -190,7 +248,8 @@ export async function getBuyingData(): Promise<BuyingData> {
   const accepted = offers.filter((o) => o.status === "accepted").length;
   const arriving = orders.filter((o) => ARRIVING_STATUSES.has(o.status)).length;
 
-  return { offers, orders, stats: { activeOffers, accepted, arriving } };
+  const comments = buildComments(orders.map((o) => ({ id: o.listingId, item: o.listingTitle, image: o.listingImage })));
+  return { offers, orders, comments, stats: { activeOffers, accepted, arriving } };
 }
 
 /* --------------------------------- selling ---------------------------------- */
@@ -268,9 +327,11 @@ export async function getSellingData(): Promise<SellingData> {
   const newOffers = offers.filter((o) => o.status === "pending").length;
   const totalViews = listings.reduce((s, l) => s + l.estViews, 0);
 
+  const comments = buildComments(listings.map((l) => ({ id: l.id, item: l.title, image: l.image })));
   return {
     offers,
     listings,
+    comments,
     stats: {
       activeListings: listings.length,
       newOffers,

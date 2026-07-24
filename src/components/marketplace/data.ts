@@ -6,6 +6,8 @@
 export interface CatItem {
   name: string;
   slug: string;
+  /** Optional third-level subcategories (e.g. Fitness → Strength → Squat Rack). */
+  children?: CatItem[];
 }
 export interface CatGroup {
   name: string;
@@ -23,12 +25,56 @@ export const CAT_GROUPS: CatGroup[] = [
     bg: "var(--tint)",
     fg: "var(--maroon)",
     items: [
-      { name: "Peloton Bike", slug: "peloton-bike-2nd-gen" },
-      { name: "Peloton Tread", slug: "peloton-tread" },
-      { name: "Treadmills", slug: "treadmills" },
-      { name: "Rowing Machines", slug: "rower" },
-      { name: "Tonal Home Gym", slug: "tonal" },
+      {
+        name: "Peloton",
+        slug: "peloton",
+        children: [
+          { name: "Peloton Bike", slug: "peloton-bike-2nd-gen" },
+          { name: "Peloton Bike+", slug: "peloton-bike-plus" },
+          { name: "Peloton Tread", slug: "peloton-tread" },
+          { name: "Peloton Tread+", slug: "peloton-tread-plus" },
+          { name: "Peloton Row", slug: "peloton-row" },
+        ],
+      },
+      {
+        name: "Rowing",
+        slug: "rower",
+        children: [
+          { name: "Peloton Row", slug: "peloton-row" },
+          { name: "Hydrow", slug: "hydrow-pro-rowing-machine" },
+          { name: "Concept2", slug: "concept2" },
+          { name: "Ergatta", slug: "ergatta" },
+        ],
+      },
+      {
+        name: "Treadmills",
+        slug: "treadmills",
+        children: [
+          { name: "Peloton Tread", slug: "peloton-tread" },
+          { name: "Peloton Tread+", slug: "peloton-tread-plus" },
+          { name: "NordicTrack", slug: "nordictrack-treadmill" },
+          { name: "ProForm", slug: "proform-treadmill" },
+        ],
+      },
+      { name: "Tonal", slug: "tonal" },
+      {
+        name: "Strength",
+        slug: "strength",
+        children: [
+          { name: "Squat Rack", slug: "squat-rack" },
+          { name: "Power Rack", slug: "power-rack" },
+          { name: "Cable Machine", slug: "cable-machine" },
+          { name: "Functional Trainer", slug: "functional-trainer" },
+          { name: "Smith Machine", slug: "smith-machine" },
+          { name: "Adjustable Dumbbells", slug: "adjustable-dumbbells" },
+        ],
+      },
+      { name: "Ellipticals", slug: "elliptical" },
       { name: "Spin Bikes", slug: "spin-bike" },
+      { name: "Recumbent Bikes", slug: "recumbent-bike" },
+      { name: "Air Bikes", slug: "air-bike" },
+      { name: "Stair Climbers", slug: "stair-climber" },
+      { name: "Home Gyms", slug: "home-gym" },
     ],
   },
   {
@@ -82,7 +128,7 @@ export const CAT_GROUPS: CatGroup[] = [
       { name: "All Vehicles", slug: "vehicles" },
       { name: "Cars & Trucks", slug: "cars" },
       { name: "Golf Carts", slug: "golf-carts" },
-      { name: "Scooters", slug: "scooters" },
+      { name: "Scooters / Vespa", slug: "scooters" },
       { name: "ATV", slug: "atv" },
       { name: "RV / Motorhome", slug: "rv-motorhome" },
       { name: "Lawn Mower", slug: "lawn-mower" },
@@ -90,15 +136,16 @@ export const CAT_GROUPS: CatGroup[] = [
   },
 ];
 
+/** Every category AND subcategory, flattened — parents first, then their children. */
+export const ALL_CATS: CatItem[] = CAT_GROUPS.flatMap((g) =>
+  g.items.flatMap((it) => (it.children && it.children.length ? [it, ...it.children] : [it])),
+);
+
 /** Flat list of every category name — used by the create-listing type-ahead. */
-export const ALL_CATEGORY_NAMES = CAT_GROUPS.flatMap((g) => g.items.map((i) => i.name));
+export const ALL_CATEGORY_NAMES = ALL_CATS.map((i) => i.name);
 
 export function findCategoryBySlug(slug: string): CatItem | undefined {
-  for (const g of CAT_GROUPS) {
-    const hit = g.items.find((i) => i.slug === slug);
-    if (hit) return hit;
-  }
-  return undefined;
+  return ALL_CATS.find((i) => i.slug === slug);
 }
 
 export interface Review {
@@ -118,18 +165,19 @@ export interface Article {
   quote: string;
   url: string;
   font: string;
-  logoText: string;
-  logoBg: string;
-  logoFg: string;
+  /** Outlet domain — its favicon is the logo, exactly as the design specifies. */
+  domain: string;
 }
+/** Google's favicon service — the design's `fav()` helper, verbatim. */
+export const favicon = (domain: string) => `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
 export const ARTICLES: Article[] = [
-  { name: "New York Post", quote: "Eye-catching prices", url: "#", font: "'Newsreader',serif", logoText: "NY POST", logoBg: "#C8102E", logoFg: "#fff" },
-  { name: "TechCrunch", quote: "Next-day delivery in major cities", url: "#", font: "'Inter Tight',sans-serif", logoText: "TC", logoBg: "#0A9E01", logoFg: "#fff" },
-  { name: "Lifehacker", quote: "I'd buy used every time", url: "#", font: "'Inter Tight',sans-serif", logoText: "LH", logoBg: "#0A9E01", logoFg: "#fff" },
-  { name: "CNBC", quote: "Faster & cheaper secondhand", url: "#", font: "'Inter Tight',sans-serif", logoText: "CNBC", logoBg: "#004B8D", logoFg: "#fff" },
-  { name: "Fast Company", quote: "Pickup & delivery handled", url: "#", font: "'Newsreader',serif", logoText: "FC", logoBg: "#111", logoFg: "#fff" },
-  { name: "Financial Times", quote: "Marketplace for fitness equipment", url: "#", font: "'Newsreader',serif", logoText: "FT", logoBg: "#FCD0B1", logoFg: "#33302E" },
-  { name: "Retail Insider", quote: "Alternative to Facebook Marketplace", url: "#", font: "'Newsreader',serif", logoText: "R·I", logoBg: "#111", logoFg: "#fff" },
+  { name: "New York Post", quote: "Eye-catching prices", font: "'Newsreader',serif", domain: "nypost.com", url: "https://nypost.com/2024/07/30/business/nyc-startup-peddles-used-pelotons-at-after-pandemic-darling-crash/" },
+  { name: "TechCrunch", quote: "Next-day delivery in major cities", font: "'Inter Tight',sans-serif", domain: "techcrunch.com", url: "https://techcrunch.com/2024/08/03/trade-my-spin-is-building-a-business-around-used-peloton-equipment/" },
+  { name: "Lifehacker", quote: "I'd buy used every time", font: "'Inter Tight',sans-serif", domain: "lifehacker.com", url: "https://lifehacker.com/health/why-you-should-buy-used-peloton" },
+  { name: "CNBC", quote: "Faster & cheaper secondhand", font: "'Inter Tight',sans-serif", domain: "cnbc.com", url: "https://www.cnbc.com/2025/06/03/peloton-launching-resale-market-for-used-bikes-treadmills.html" },
+  { name: "Fast Company", quote: "Pickup & delivery handled", font: "'Newsreader',serif", domain: "fastcompany.com", url: "https://www.fastcompany.com/91178440/buying-a-used-peloton-get-ready-for-a-95-activation-fee" },
+  { name: "Financial Times", quote: "Marketplace for fitness equipment", font: "'Newsreader',serif", domain: "ft.com", url: "https://www.ft.com/content/0afc00f5-17fc-4e09-9d8f-3443fc9817e0" },
+  { name: "Retail Insider", quote: "Alternative to Facebook Marketplace", font: "'Inter Tight',sans-serif", domain: "retail-insider.com", url: "https://retail-insider.com/retail-insider/2026/04/u-s-based-commonplace-marketplace-eyes-expansion-into-canada/" },
 ];
 
 export interface Condition {

@@ -15,7 +15,7 @@
 // (asking/floor/original price, description, photos, seller contact) are
 // rendered globally by the form and are intentionally NOT repeated here.
 
-export type FieldType = "text" | "number" | "select" | "chips" | "radio" | "textarea";
+export type FieldType = "text" | "number" | "select" | "chips" | "radio" | "textarea" | "dimensions";
 
 export interface Field {
   key: string;
@@ -27,7 +27,64 @@ export interface Field {
   required?: boolean;
   /** Only show this field when another field's (chips) answer includes a value. */
   showWhen?: { field: string; includes: string };
+  /** Radio/chips: show an "Other…" pill that reveals a free-text entry. */
+  allowCustom?: boolean;
+  /** Model-style field: options depend on the selected brand. */
+  brandKey?: string;
+  brandModels?: Record<string, string[]>;
 }
+
+/* Popular brands + their models — powers the pill pickers and model-from-brand. */
+export const GOLF_CART_BRANDS = ["EZ-GO", "Club Car", "Yamaha", "ICON", "Star EV", "Evolution", "Bintelli", "Advanced EV", "Tomberlin", "Garia"];
+export const GOLF_CART_MODELS: Record<string, string[]> = {
+  "EZ-GO": ["TXT", "RXV", "Express S4", "Express L6", "Freedom", "Valor"],
+  "Club Car": ["Precedent", "Onward", "Tempo", "DS", "Villager", "Carryall"],
+  "Yamaha": ["Drive2", "Adventurer", "UMAX", "Concierge"],
+  "ICON": ["i20", "i40", "i60", "i80", "EV"],
+  "Star EV": ["Sirius", "Capella", "Classic", "Bolt"],
+  "Evolution": ["Classic 4 Plus", "Forester 4", "Forester 6", "D5 Maverick", "Turfman"],
+  "Bintelli": ["Beyond", "Nemesis"],
+  "Advanced EV": ["Advent", "EV1"],
+};
+/* Popular brands per department — for the generic "Brand / maker" pill picker. */
+const FURNITURE_BRANDS = ["Ashley", "IKEA", "West Elm", "Pottery Barn", "Crate & Barrel", "La-Z-Boy", "Ethan Allen", "Article", "Wayfair", "Restoration Hardware", "CB2", "Room & Board"];
+const APPLIANCE_BRANDS = ["Samsung", "LG", "Whirlpool", "GE", "Maytag", "Frigidaire", "Bosch", "KitchenAid", "Sub-Zero", "Kenmore", "Electrolux", "Viking"];
+const FITNESS_BRANDS = ["Peloton", "NordicTrack", "Bowflex", "ProForm", "Sole Fitness", "Life Fitness", "Precor", "Schwinn", "Horizon Fitness", "Echelon", "Hydrow", "Concept2"];
+const WELLNESS_BRANDS = ["Jacuzzi", "Hot Spring Spas", "Sundance Spas", "Bullfrog Spas", "Master Spas", "Sunlighten", "Dynamic", "Medical Breakthrough"];
+const VEHICLE_BRANDS = ["EZ-GO", "Club Car", "Yamaha", "Honda", "Polaris", "Can-Am", "Kawasaki", "John Deere", "Cushman", "ICON"];
+
+/* Furniture material + color pill options, and the extra fields to inject for
+   furniture-type categories (sofas, sectionals, chairs, tables, …). */
+const FURNITURE_MATERIALS = ["Leather", "Fabric", "Velvet", "Microfiber", "Faux Leather", "Linen", "Wood", "Metal", "Wicker / Rattan", "Suede", "Boucle"];
+const FURNITURE_COLORS = ["Black", "White", "Gray", "Charcoal", "Beige", "Cream", "Brown", "Tan", "Navy", "Blue", "Green", "Red"];
+export function furnitureExtraFields(slug: string | null | undefined, name?: string | null): Field[] {
+  const s = `${slug ?? ""} ${name ?? ""}`.toLowerCase();
+  if (!/sofa|sectional|couch|loveseat|chair|recliner|ottoman|bench|dining|coffee|\btable|\bdesk|dresser|bookshelf|cabinet|furniture|\bbed|mattress|nightstand|stool|futon|sideboard/.test(s)) return [];
+  return [
+    { key: "material", label: "Material", type: "chips", allowCustom: true, options: FURNITURE_MATERIALS },
+    { key: "color", label: "Color", type: "chips", allowCustom: true, options: FURNITURE_COLORS },
+  ];
+}
+
+/** Popular brand suggestions for a category (empty = free-text only). */
+export function brandOptionsFor(slug: string | null | undefined, name?: string | null): string[] {
+  const s = `${slug ?? ""} ${name ?? ""}`.toLowerCase();
+  if (/fridge|refriger|washer|dryer|dishwasher|\brange\b|oven|appliance|freezer|microwave/.test(s)) return APPLIANCE_BRANDS;
+  if (/sofa|sectional|couch|loveseat|dining|coffee|\btable|\bdesk|dresser|bookshelf|furniture|\blamp|armchair|recliner|\bbed|mattress|nightstand|cabinet|shelv/.test(s)) return FURNITURE_BRANDS;
+  if (/hot ?tub|spa|sauna|plunge|massage|wellness/.test(s)) return WELLNESS_BRANDS;
+  if (/golf ?cart|\batv\b|scooter|vehicle|\bcar\b|truck|mower|motorcycle/.test(s)) return VEHICLE_BRANDS;
+  if (/treadmill|peloton|\bbike\b|elliptical|rower|rowing|gym|fitness|strength|weight|dumbbell|tonal|spin|stair/.test(s)) return FITNESS_BRANDS;
+  return [];
+}
+
+export const TREADMILL_MODELS: Record<string, string[]> = {
+  "NordicTrack": ["Commercial 1750", "Commercial 2450", "Commercial 2950", "EXP 7i", "EXP 10i", "X22i", "X24", "T Series"],
+  "ProForm": ["Pro 2000", "Pro 9000", "Carbon T7", "Carbon TL", "City L6", "505 CST"],
+  "Sole Fitness": ["F63", "F65", "F80", "F85", "TT8"],
+  "Horizon Fitness": ["7.0 AT", "7.4 AT", "T101", "T202"],
+  "Peloton": ["Tread", "Tread+"],
+  "Bowflex": ["Treadmill 10", "Treadmill 22", "BXT216", "BXT116"],
+};
 
 export interface SellSpec {
   /** Internal kind id (also used as a stable key). */
@@ -82,7 +139,7 @@ export const KIND_SPECS: Record<string, SellSpec> = {
         type: "chips",
         options: ["Shoes", "Mat", "Weights", "Heart rate monitor", "Fan", "Laptop tray", "Pedal cages", "Seat cushion", "Sweat guard"],
       },
-      { key: "shoes_size", label: "Shoe Size", type: "radio", options: numberRange(36, 47), showWhen: { field: "accessories", includes: "Shoes" } },
+      { key: "shoes_size", label: "Shoe Size", type: "chips", options: numberRange(36, 47), showWhen: { field: "accessories", includes: "Shoes" } },
       {
         key: "damage",
         label: "Issues",
@@ -174,13 +231,15 @@ export const KIND_SPECS: Record<string, SellSpec> = {
         label: "Brand",
         type: "radio",
         required: true,
+        allowCustom: true,
         options: ["NordicTrack", "Sole Fitness", "ProForm", "Horizon Fitness", "Bowflex", "Echelon", "Life Fitness", "Precor", "TRUE Fitness", "Assault"],
       },
-      { key: "model", label: "Model", type: "text" },
+      { key: "model", label: "Model", type: "radio", allowCustom: true, brandKey: "brand", brandModels: TREADMILL_MODELS },
       {
         key: "type",
         label: "Type",
-        type: "radio",
+        type: "chips",
+        required: true,
         options: [
           "Manual Treadmills",
           "Motorized Treadmills",
@@ -614,8 +673,8 @@ export const KIND_SPECS: Record<string, SellSpec> = {
     kind: "golfCart",
     title: "Golf Cart",
     questions: [
-      { key: "brand", label: "Brand", type: "text", required: true },
-      { key: "model", label: "Model", type: "text", required: true },
+      { key: "brand", label: "Brand", type: "radio", required: true, allowCustom: true, options: GOLF_CART_BRANDS },
+      { key: "model", label: "Model", type: "radio", required: true, allowCustom: true, brandKey: "brand", brandModels: GOLF_CART_MODELS },
       { key: "year", label: "Year", type: "number" },
       { key: "condition", label: "Condition", type: "select", required: true, options: NEW_TO_POOR },
       { key: "battery_type", label: "Battery Type", type: "select", options: ["Lead-Acid", "Lithium-Ion", "Other"] },
@@ -667,7 +726,7 @@ export const KIND_SPECS: Record<string, SellSpec> = {
     generic: true,
     questions: [
       { key: "brand", label: "Brand / maker", type: "text", placeholder: "Optional" },
-      { key: "dims", label: "Approx. dimensions & weight", type: "text", placeholder: "e.g. 80 x 40 x 30 in, ~120 lb" },
+      { key: "dims", label: "Approx. dimensions & weight", type: "dimensions" },
       { key: "description", label: "Describe your item", type: "textarea", placeholder: "What it is, condition, what's included, why you're selling.", required: true },
     ],
     photoTips: [

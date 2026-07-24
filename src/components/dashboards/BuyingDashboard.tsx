@@ -9,12 +9,13 @@ import { useEffect, useState } from "react";
 import { css, sx, Hoverable } from "@/lib/design/css";
 import { formatPrice } from "@/lib/listing";
 import { getBuyingData } from "@/lib/dashboards";
-import type { BuyingData, DashboardOrder, OfferDTO } from "@/lib/dashboards";
+import type { BuyingData, DashboardOrder, DashboardComment, OfferDTO } from "@/lib/dashboards";
 import type { OfferStatus } from "@/lib/offers";
 
 const EMPTY: BuyingData = {
   offers: [],
   orders: [],
+  comments: [],
   stats: { activeOffers: 0, accepted: 0, arriving: 0 },
 };
 
@@ -148,7 +149,7 @@ function GhostButton({ children, onClick }: { children: React.ReactNode; onClick
       as="button"
       onClick={onClick}
       styles="display:inline-flex;align-items:center;gap:7px;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:11px;padding:10px 16px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap"
-      hover="border-color:#d9b7c2;box-shadow:0 4px 12px rgba(60,10,35,.08)"
+      hover="border:1px solid #d9b7c2;box-shadow:0 4px 12px rgba(60,10,35,.08)"
     >
       {children}
     </Hoverable>
@@ -259,6 +260,7 @@ export function BuyingDashboard({ onBrowse }: { onBrowse: () => void }) {
   const d = data ?? EMPTY;
   const offers = Array.isArray(d.offers) ? d.offers : [];
   const orders = (Array.isArray(d.orders) ? d.orders : []).slice(0, 12);
+  const comments = Array.isArray(d.comments) ? d.comments : [];
   const stats = d.stats ?? EMPTY.stats;
 
   const setStatus = (id: string, status: OfferStatus) => setOverrides((p) => ({ ...p, [id]: status }));
@@ -351,8 +353,41 @@ export function BuyingDashboard({ onBrowse }: { onBrowse: () => void }) {
         <EmptyRow title="Nothing arriving yet" text="Once a seller accepts your offer, your order and its live delivery status show up here." onBrowse={onBrowse} />
       )}
 
+      {/* Questions you've asked */}
+      {!loading && comments.length > 0 && (
+        <div style={css("margin-top:34px")}>
+          <SectionHeading count={comments.length}>Your questions &amp; comments</SectionHeading>
+          <div style={css("display:flex;flex-direction:column;gap:12px")}>
+            {comments.map((c) => (
+              <CommentThread key={c.id} c={c} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Responsive: stat tiles collapse to a single column on narrow screens. */}
       <style>{"@media(max-width:640px){[data-buy-stats]{grid-template-columns:1fr!important}}"}</style>
+    </div>
+  );
+}
+
+function CommentThread({ c }: { c: DashboardComment }) {
+  return (
+    <div style={sx("background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:15px 17px", { boxShadow: CARD_SHADOW })}>
+      <div style={css("display:flex;align-items:center;gap:10px;margin-bottom:9px")}>
+        <div style={css("width:34px;height:34px;flex:0 0 auto;border-radius:8px;overflow:hidden;background:var(--putty)")}>
+          {c.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={c.image} alt="" style={css("width:100%;height:100%;object-fit:cover")} />
+          ) : null}
+        </div>
+        <div style={css("font-size:13px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{c.item}</div>
+        <span style={sx("margin-left:auto;flex:0 0 auto;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700", c.answered ? { background: "var(--greenBg)", color: "var(--green)" } : { background: "var(--yellowBg)", color: "var(--gold)" })}>{c.answered ? "Answered" : "Awaiting reply"}</span>
+      </div>
+      <div style={css("font-size:13.5px;color:var(--ink);line-height:1.5")}><b>Q:</b> {c.question}</div>
+      {c.answered && c.answer && (
+        <div style={css("font-size:13px;color:var(--muted);line-height:1.5;margin-top:6px;padding-left:12px;border-left:2px solid var(--line)")}><b style={css("color:var(--maroon)")}>Commonplace:</b> {c.answer}</div>
+      )}
     </div>
   );
 }

@@ -38,12 +38,14 @@ PRODUCT DETAILS (all fields submitted by the seller):
 ---
 
 TONE & VOICE:
-- Warm, human, and confident — like a knowledgeable friend describing the item, not a spec sheet
-- Short sentences. Active voice. No jargon unless it's genuinely useful to the buyer.
-- Lead with what matters most: condition, key specs, what's included
-- The description should make the buyer feel informed and reassured — not overwhelmed
-- Do NOT sound robotic, do NOT use filler phrases like "This item is perfect for..."
-- Do NOT include: contact info, pickup/delivery/location details, pricing, or anything about the seller
+- Warm, human, and confident, like a knowledgeable friend who actually knows this exact item, not a spec sheet.
+- Make the buyer WANT it. Lead with what makes it a great find (brand reputation, design, comfort, performance, or value), then back it up with specifics.
+- Short, punchy sentences. Active voice. Every sentence earns its place. No jargon unless it genuinely helps the buyer.
+- Be specific and honest. NEVER invent features, condition, history, or specs that are not in the details. If something is unknown, leave it out rather than guessing.
+- When the brand is genuinely known for quality, design, or performance (e.g. CB2, West Elm, Restoration Hardware, Peloton, Sub-Zero, Wolf, NordicTrack, Herman Miller), name that reputation in ONE natural phrase. Do not overhype generic or no-name items.
+- Do NOT use em-dashes anywhere. Use periods or commas instead.
+- Do NOT sound robotic. Avoid filler like "This item is perfect for...", "Look no further", or "You won't be disappointed".
+- Do NOT include: contact info, pickup/delivery/location details, pricing, or anything about the seller.
 
 TITLE RULES (max 90 characters, no punctuation at end):
 - Clear, specific, and searchable
@@ -51,20 +53,21 @@ TITLE RULES (max 90 characters, no punctuation at end):
 - Example format: "2021 Peloton Bike+ – Good Condition, Includes Shoes & Mat"
 - Do NOT be creative with the title — buyers search for real words
 
-DESCRIPTION RULES (2–3 paragraphs, separated by \\n\\n):
+DESCRIPTION RULES (2–3 short paragraphs, separated by \\n\\n):
 
-Paragraph 1 — The item itself:
-- What it is, its condition, how it's been used, what's included
-- Draw from BOTH the seller's description and the product details above
-- Be specific — mention model, year, notable features that matter to a buyer
+Paragraph 1 — The hook and the item:
+- Open with a sentence that makes the buyer lean in: what it is and why it is worth their attention (brand, design, comfort, capability).
+- Then state the condition honestly and how it has been used or cared for. Weave the seller's selling points in naturally as prose (e.g. kept in a smoke-free home, all original parts, well maintained) rather than listing them like tags.
+- Draw from BOTH the seller's description and the product details above. Mention model, year, and the features that actually matter to a buyer.
 
-Paragraph 2 — Specs & details:
-- Key technical specs, dimensions, or capabilities relevant to this type of item
-- Anything a buyer would need to know before committing to purchase
+Paragraph 2 — Specs, size, and what's included:
+- The specs, dimensions, and capabilities that matter for this type of item.
+- Write dimensions inline and tight, e.g. 106"W x 24"D x 38"H, 250 lbs. Do NOT spell out "measures X inches long by Y inches deep by Z inches high."
+- Call out exactly what is included (accessories, parts, extras).
 
-Paragraph 3 (only if genuinely needed):
-- Any additional notable features, accessories, or context
-- Skip this paragraph entirely if paragraphs 1 and 2 already cover everything
+Paragraph 3 (only if it truly adds something):
+- A notable extra, or a quick, concrete note on who it suits and why it is a smart buy.
+- Skip this paragraph entirely if paragraphs 1 and 2 already cover everything.
 
 ---
 

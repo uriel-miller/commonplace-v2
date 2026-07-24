@@ -286,8 +286,8 @@ export function CartExitPopup({
                 disabled={status === "loading"}
                 style={sx(
                   "width:100%;box-sizing:border-box;height:52px;padding:0 16px;font-size:16px;color:#1a1a1a;background:#fff;border:1px solid #E6E6E6;border-radius:10px;outline:none;",
-                  focused && "border-color:#630E3D;box-shadow:0 0 0 4px rgba(99,14,61,.12);",
-                  !!error && "border-color:#D4183D;",
+                  focused && "border:1px solid #630E3D;box-shadow:0 0 0 4px rgba(99,14,61,.12);",
+                  !!error && "border:1px solid #D4183D;",
                 )}
               />
 

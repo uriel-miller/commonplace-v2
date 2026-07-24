@@ -191,7 +191,7 @@ export function SeeAllReviews() {
       target="_blank"
       rel="noopener noreferrer"
       styles="display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--maroon);text-decoration:none;padding:8px 14px;border:1px solid var(--line);border-radius:10px;background:var(--paper);transition:border-color .2s ease,background .2s ease"
-      hover="border-color:#d9b7c2;background:var(--tint)"
+      hover="border:1px solid #d9b7c2;background:var(--tint)"
     >
       See all reviews on Google
       <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

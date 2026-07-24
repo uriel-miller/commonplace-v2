@@ -15,11 +15,12 @@ import { css, sx, Hoverable } from "@/lib/design/css";
 import { Plus, ChevronLeft } from "@/components/marketplace/icons";
 import { formatPrice } from "@/lib/listing";
 import { getSellingData } from "@/lib/dashboards";
-import type { SellingData, SellingListing, OfferDTO } from "@/lib/dashboards";
+import type { SellingData, SellingListing, DashboardComment, OfferDTO } from "@/lib/dashboards";
 
 const EMPTY: SellingData = {
   offers: [],
   listings: [],
+  comments: [],
   stats: { activeListings: 0, newOffers: 0, totalViews: 0, paidOutCents: 0 },
 };
 
@@ -179,6 +180,27 @@ function EmptyState({ title, text, cta, onCta }: { title: string; text: string; 
       <div style={css("font-family:'Reckless','Newsreader',serif;font-size:20px;color:var(--ink);margin-bottom:6px")}>{title}</div>
       <div style={css("font-size:14px;color:var(--muted);max-width:400px;margin:0 auto 18px;line-height:1.5")}>{text}</div>
       <PrimaryButton onClick={onCta}><Plus size={15} stroke="#fff" />{cta}</PrimaryButton>
+    </div>
+  );
+}
+
+function SellComment({ c }: { c: DashboardComment }) {
+  return (
+    <div style={css("background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:15px 17px")}>
+      <div style={css("display:flex;align-items:center;gap:10px;margin-bottom:9px")}>
+        <div style={css("width:34px;height:34px;flex:0 0 auto;border-radius:8px;overflow:hidden;background:var(--putty)")}>
+          {c.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={c.image} alt="" style={css("width:100%;height:100%;object-fit:cover")} />
+          ) : null}
+        </div>
+        <div style={css("font-size:13px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap")}>{c.item}</div>
+        <span style={sx("margin-left:auto;flex:0 0 auto;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700", c.answered ? { background: "var(--greenBg)", color: "var(--green)" } : { background: "var(--yellowBg)", color: "var(--gold)" })}>{c.answered ? "Answered" : "Needs a reply"}</span>
+      </div>
+      <div style={css("font-size:13.5px;color:var(--ink);line-height:1.5")}><b>Q:</b> {c.question}</div>
+      {c.answered && c.answer && (
+        <div style={css("font-size:13px;color:var(--muted);line-height:1.5;margin-top:6px;padding-left:12px;border-left:2px solid var(--line)")}><b style={css("color:var(--maroon)")}>Commonplace:</b> {c.answer}</div>
+      )}
     </div>
   );
 }
@@ -384,6 +406,18 @@ export function SellingDashboard({ onBrowse, onNew }: { onBrowse: () => void; on
         </div>
       ) : (
         <EmptyState title="No active listings" text="List something you no longer need — we handle pickup, delivery, and payment." cta="Create your first listing" onCta={onNew} />
+      )}
+
+      {/* Buyer questions on your listings */}
+      {!loading && Array.isArray(d.comments) && d.comments.length > 0 && (
+        <div style={css("margin-top:34px")}>
+          <SectionHeading sub="Questions buyers have asked on your listings. Commonplace answers most from the pickup inspection.">Questions &amp; comments</SectionHeading>
+          <div style={css("display:flex;flex-direction:column;gap:12px")}>
+            {d.comments.map((c) => (
+              <SellComment key={c.id} c={c} />
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

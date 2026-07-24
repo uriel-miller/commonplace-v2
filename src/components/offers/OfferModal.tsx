@@ -198,7 +198,7 @@ export default function OfferModal({
                 <div
                   style={sx(
                     INPUT_WRAP,
-                    amountCents > 0 && "border-color:var(--ink)",
+                    amountCents > 0 && "border:1.5px solid var(--ink)",
                   )}
                 >
                   <span style={css("font-size:18px;font-weight:700;color:var(--muted)")}>$</span>

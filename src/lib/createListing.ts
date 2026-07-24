@@ -71,7 +71,7 @@ function localPreview(payload: CreateListingPayload, error: string): CreateListi
   };
 }
 
-async function postWithTimeout(body: string, ms = 20000): Promise<Response> {
+async function postWithTimeout(body: string, ms = 12000): Promise<Response> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
   try {

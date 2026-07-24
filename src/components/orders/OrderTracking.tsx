@@ -94,8 +94,8 @@ export function OrderTracking({ orderId, order: initial, onBack, onBrowse }: Ord
   const [order, setOrder] = useState<OrderRecord | null>(initial ?? null);
   const [loading, setLoading] = useState<boolean>(!initial && !!orderId);
   const [error, setError] = useState<string | null>(null);
-
-  const id = order?.id ?? orderId;
+  const [num, setNum] = useState(""); // order-number lookup field (no sign-in needed)
+  const [phone, setPhone] = useState(""); // phone-on-order, matching the live /track form
 
   const load = useCallback(async (targetId: string) => {
     setLoading(true);
@@ -144,20 +144,47 @@ export function OrderTracking({ orderId, order: initial, onBack, onBrowse }: Ord
     );
   }
 
-  if (error || !order) {
+  // Public order-number lookup — map backdrop + order # / phone card, matching
+  // trycommonplace.com/track. No sign-in required.
+  if (!order) {
+    const submit = () => { const v = num.trim(); if (v) void load(v); };
+    const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
+    const mapBg = key
+      ? `url("https://maps.googleapis.com/maps/api/staticmap?center=40.73,-73.98&zoom=11&size=640x640&scale=2&maptype=roadmap&key=${encodeURIComponent(key)}")`
+      : "repeating-linear-gradient(135deg,#EAF1E8 0 22px,#E3ECE1 22px 44px)";
     return (
-      <div style={css("max-width:900px")}>
+      <div style={css("max-width:1180px;margin:0 auto")}>
         {Breadcrumb}
-        <div style={css("max-width:520px;margin:30px auto;text-align:center;padding:20px")}>
-          <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:24px;font-weight:500;letter-spacing:-.4px;margin-bottom:6px")}>Order not found</h2>
-          <p style={css("color:var(--muted);font-size:14px;line-height:1.55;margin-bottom:18px")}>{error || "We couldn’t find that order."}</p>
-          <div style={css("display:flex;gap:10px;justify-content:center;flex-wrap:wrap")}>
-            {id && (
-              <Hoverable as="button" type="button" onClick={() => load(id)} styles="background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:12px 20px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit" hover="background:var(--putty)">Retry</Hoverable>
-            )}
-            {onBrowse && (
-              <Hoverable as="button" type="button" onClick={onBrowse} styles="background:var(--maroon);color:#fff;border:none;border-radius:12px;padding:12px 20px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit" hover="filter:brightness(1.08)">Browse listings</Hoverable>
-            )}
+        <div style={sx("position:relative;border-radius:18px;overflow:hidden;min-height:calc(100dvh - 150px);display:flex;align-items:center;justify-content:center;padding:26px", { backgroundImage: mapBg, backgroundSize: "cover", backgroundPosition: "center" })}>
+          {/* Lookup card overlaid on the map */}
+          <div style={css("width:100%;max-width:700px;background:var(--paper);border-radius:16px;box-shadow:0 24px 60px rgba(30,10,25,.28);padding:28px 32px")}>
+            <h1 style={css("font-family:'Reckless','Newsreader',serif;font-size:28px;font-weight:500;letter-spacing:-.4px;margin-bottom:6px")}>Track your order</h1>
+            <p style={css("color:var(--muted);font-size:14px;line-height:1.55;margin-bottom:18px")}>Enter your order number and the phone number from your order to see live delivery status.</p>
+            <div style={css("display:flex;flex-direction:column;gap:11px")}>
+              <input
+                value={num}
+                onChange={(e) => { setNum(e.target.value); if (error) setError(null); }}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
+                placeholder="Order number"
+                aria-label="Order number"
+                autoFocus
+                style={css("width:100%;box-sizing:border-box;border:1px solid var(--line);background:var(--paper);border-radius:12px;padding:15px 16px;font-size:15px;color:var(--ink);outline:none;font-family:inherit")}
+              />
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
+                placeholder="Phone number on your order"
+                aria-label="Phone number on your order"
+                inputMode="tel"
+                style={css("width:100%;box-sizing:border-box;border:1px solid var(--line);background:var(--paper);border-radius:12px;padding:15px 16px;font-size:15px;color:var(--ink);outline:none;font-family:inherit")}
+              />
+              <Hoverable as="button" type="button" onClick={submit}
+                styles="width:100%;background:var(--maroon);color:#fff;border:none;border-radius:12px;padding:15px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit"
+                hover="filter:brightness(1.08)">Track</Hoverable>
+            </div>
+            {error && <div style={css("margin-top:14px;font-size:13.5px;color:var(--red,#c15540)")}>{error}</div>}
+            <p style={css("margin-top:14px;font-size:12.5px;color:var(--muted);line-height:1.5")}>Your order number is on your confirmation email and text.</p>
           </div>
         </div>
       </div>

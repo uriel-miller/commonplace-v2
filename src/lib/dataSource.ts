@@ -9,7 +9,8 @@
 import { prisma, hasDatabaseUrl } from "./db";
 import { Prisma } from "@/generated/prisma/client";
 import { listProducts, type ListParams } from "./wc";
-import type { Listing, ListingPage } from "./listing";
+import type { ListingPage } from "./listing";
+import { type Listing, formatListingTitle } from "./listing";
 
 export interface SourceListParams {
   page?: number;
@@ -34,7 +35,7 @@ function rowToListing(r: Prisma.ListingModel): Listing {
   return {
     id: r.id,
     slug: r.slug,
-    title: r.title,
+    title: formatListingTitle(r.title, r.location),
     priceCents: r.priceCents,
     retailCents: r.retailCents,
     savingsPct: r.savingsPct,

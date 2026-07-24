@@ -6,6 +6,7 @@ import { TermsPage } from "./TermsPage";
 import { WarrantyPage } from "./WarrantyPage";
 import { ReturnPolicyPage } from "./ReturnPolicyPage";
 import { PrivacyPage } from "./PrivacyPage";
+import { InformationSecurityPage } from "./InformationSecurityPage";
 
 export {
   AboutPage,
@@ -15,6 +16,7 @@ export {
   WarrantyPage,
   ReturnPolicyPage,
   PrivacyPage,
+  InformationSecurityPage,
 };
 export { InfoPageShell } from "./InfoPageShell";
 export { Markdown } from "./Markdown";
@@ -27,7 +29,8 @@ export type InfoPageSlug =
   | "terms"
   | "warranty"
   | "return-policy"
-  | "privacy";
+  | "privacy"
+  | "information-security";
 
 export interface InfoPageEntry {
   /** Human-readable page name, used for nav links, tab titles, etc. */
@@ -61,6 +64,11 @@ export const INFO_PAGES: Record<InfoPageSlug, InfoPageEntry> = {
     title: "Privacy Policy",
     Component: PrivacyPage,
     aliases: ["privacy-policy"],
+  },
+  "information-security": {
+    title: "Information Security Policy",
+    Component: InformationSecurityPage,
+    aliases: ["information-security-policy", "infosec", "security-policy"],
   },
 };
 

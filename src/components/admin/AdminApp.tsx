@@ -8,11 +8,13 @@ import OrdersAdmin from "./OrdersAdmin";
 import OffersAdmin from "./OffersAdmin";
 import SellersAdmin from "./SellersAdmin";
 import FeesAdmin from "./FeesAdmin";
+import AnalyticsAdmin from "./AnalyticsAdmin";
 
-type TabKey = "dashboard" | "listings" | "orders" | "offers" | "sellers" | "fees";
+type TabKey = "dashboard" | "analytics" | "listings" | "orders" | "offers" | "sellers" | "fees";
 
 const TABS: { key: TabKey; label: string; Panel: ComponentType; icon: React.ReactNode }[] = [
   { key: "dashboard", label: "Dashboard", Panel: DashboardOverview, icon: <><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></> },
+  { key: "analytics", label: "Analytics", Panel: AnalyticsAdmin, icon: <><path d="M3 3v18h18" /><path d="M7 15l3-4 3 2 4-6" /></> },
   { key: "listings", label: "Listings", Panel: ListingsAdmin, icon: <><path d="M4 9h16l-1-4.5H5L4 9Z" /><path d="M5 9v10.5h14V9" /></> },
   { key: "orders", label: "Orders", Panel: OrdersAdmin, icon: <><rect x="4" y="4" width="16" height="16" rx="2.5" /><path d="M8 9h8M8 13h8M8 17h5" /></> },
   { key: "offers", label: "Offers", Panel: OffersAdmin, icon: <><path d="M12 3v18M5 8h9a3 3 0 0 1 0 6H7" /></> },

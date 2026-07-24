@@ -25,7 +25,7 @@ export function SearchResultCard({
       as="button"
       onClick={onClick}
       styles="display:block;width:100%;text-align:left;padding:0;font-family:inherit;transition:box-shadow .2s ease,border-color .2s ease;background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden;cursor:pointer;animation:pop .3s ease both;box-shadow:0 3px 10px rgba(60,10,35,.05)"
-      hover="box-shadow:0 18px 38px rgba(60,10,35,.22);border-color:#d9b7c2"
+      hover="box-shadow:0 18px 38px rgba(60,10,35,.22);border:1px solid #d9b7c2"
     >
       <div style={sx("position:relative;aspect-ratio:4/3;overflow:hidden", { background: `repeating-linear-gradient(135deg,${tint} 0 15px,${tint2} 15px 30px)` })}>
         {img ? (
@@ -45,11 +45,9 @@ export function SearchResultCard({
       </div>
       <div style={css("padding:10px 11px 11px")}>
         <div style={css("font-family:'Reckless','Newsreader',serif;font-size:13px;font-weight:500;line-height:1.28;height:33px;overflow:hidden;text-wrap:pretty")}>{item.title}</div>
-        {item.location && (
-          <div style={css("display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--muted);margin-top:5px")}>
-            <Pin size={12} />{item.location}
-          </div>
-        )}
+        <div style={css("display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--muted);margin-top:5px;height:15px;overflow:hidden")}>
+          {item.location ? <><Pin size={12} />{item.location}</> : null}
+        </div>
         <div style={css("display:flex;align-items:baseline;gap:7px;margin-top:5px")}>
           <span style={css("font-size:15px;font-weight:800;letter-spacing:-.3px")}>{formatPrice(item.priceCents)}</span>
           {item.retailCents ? <span style={css("font-size:11px;color:var(--muted);text-decoration:line-through")}>{formatPrice(item.retailCents)}</span> : null}

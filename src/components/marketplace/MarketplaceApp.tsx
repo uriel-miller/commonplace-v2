@@ -4,20 +4,24 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { css, sx, Hoverable } from "@/lib/design/css";
 import {
   CAT_GROUPS,
+  ALL_CATS,
   REVIEWS,
   ARTICLES,
+  favicon,
   CONDITIONS,
-  BROWSE_CHIPS,
   type CatItem,
 } from "./data";
 import { resolveSellSpec, type Field } from "./sellSchema";
 import { fetchListings } from "@/lib/clientApi";
+import { fuzzyCategoryMatch } from "@/lib/fuzzy";
 import { formatPrice, type Listing } from "@/lib/listing";
 import { Chevron, ChevronRight, ChevronLeft, Pin, Plus, Close, Search } from "./icons";
 import { useCart } from "@/components/cart/CartProvider";
 import { SideCart } from "@/components/cart/SideCart";
 import { CartPage } from "@/components/cart/CartPage";
 import { SellPage } from "@/components/sell/SellPage";
+import { BlogView } from "@/components/pages/blog/BlogView";
+import { analytics } from "@/lib/analytics/tracker";
 import { AddonPopup } from "@/components/cart/AddonPopup";
 import { isAddonListing } from "@/lib/addons";
 import { Footer } from "@/components/marketplace/Footer";
@@ -50,12 +54,12 @@ const LEARN_VIDEOS = [
 
 const LOGO = "/design-assets/805cd68e-4bc0-474c-9062-282704b82b24.svg";
 
-type View = "browse" | "category" | "buying" | "selling" | "product" | "account" | "search" | "cart" | "info" | "checkout" | "track" | "sell";
+type View = "browse" | "category" | "buying" | "selling" | "product" | "account" | "search" | "cart" | "info" | "checkout" | "track" | "sell" | "blog";
 
 // Root CSS custom properties, ported verbatim from the design wrapper (the
 // canvas-scaling hacks — zoom/125vw/125vh — are dropped so it renders 1:1).
 const ROOT_VARS =
-  "--cream:#FDFBF9;--paper:#ffffff;--ink:#19171C;--muted:#7C7069;--line:#ECE4D8;--maroon:#620E3B;--maroon2:#7A2740;--tint:#F4E7EA;--putty:#f6f1ea;--gold:#C98A22;--blue:#7FA8D9;--purple:#9C88D6;--yellow:#E7C24B;--red:#C15540;--green:#3B7A57;--greenBg:#E1F0E7;--blueBg:#E4EDF8;--blueInk:#2C5B8A;--fbblue:#1877F2;--fbbtn:#E7F3FF;--yellowBg:#F7EDCE";
+  "--cream:#FEFDFB;--paper:#ffffff;--ink:#19171C;--muted:#7C7069;--line:#EFE8DE;--maroon:#620E3B;--maroon2:#7A2740;--tint:#F7ECEF;--putty:#F9F5EF;--gold:#C98A22;--blue:#7FA8D9;--purple:#9C88D6;--yellow:#E7C24B;--red:#C15540;--green:#3B7A57;--greenBg:#E7F2EC;--blueBg:#E9F0F9;--blueInk:#2C5B8A;--fbblue:#1877F2;--fbbtn:#E7F3FF;--yellowBg:#F9F1D8";
 
 /* --------------------------- Filters (functional + category-specific) --------------------------- */
 interface FilterState { conds: Set<string>; priceMin: string; priceMax: string; attrs: Set<string> }
@@ -71,10 +75,47 @@ function matchesFilter(it: Listing, f: FilterState): boolean {
     if (!ok) return false;
   }
   if (f.attrs.size > 0) {
-    const t = (it.title || "").toLowerCase();
-    if (![...f.attrs].some((a) => t.includes(a.toLowerCase()))) return false;
+    const title = (it.title || "").toLowerCase();
+    const full = (title + " " + (it.description?.join(" ") ?? "")).toLowerCase();
+    if (![...f.attrs].some((a) => attrMatches(title, full, a))) return false;
   }
   return true;
+}
+
+/** True if a listing satisfies one attribute chip. Capacity/seat chips
+ *  ("6–7 person", "6-seater") match the TITLE only — descriptions mention other
+ *  seat counts ("optional 6-passenger kit") and would leak wrong results in.
+ *  Everything else matches title + description. */
+function attrMatches(title: string, full: string, attr: string): boolean {
+  const a = attr.toLowerCase();
+  const isCapacity = /person|people|seat|seater|passenger|sleeps/.test(a);
+  const hay = isCapacity ? title : full;
+  if (hay.includes(a)) return true;
+  if (!isCapacity) return false;
+  const nums = a.match(/\d+/g);
+  if (!nums) return false;
+  const plus = a.includes("+");
+  const hit = (n: number) =>
+    new RegExp(`\\b${n}[ -]?(?:person|people|seat|seater|passenger)`).test(title) ||
+    new RegExp(`(?:seats?|sleeps|holds|passenger)[ -]?${n}\\b`).test(title);
+  if (nums.some((n) => hit(Number(n)))) return true;
+  if (plus) { for (let k = Number(nums[0]) + 1; k <= 12; k++) if (hit(k)) return true; }
+  return false;
+}
+
+/** Map a requested person/seat count to the category's capacity chip. */
+function capacityOptionForCount(groups: AttrGroup[], n: number): string | null {
+  for (const g of groups) {
+    if (!/capacity|seat|person|passenger/i.test(g.label)) continue;
+    for (const o of g.options) {
+      const nums = (o.match(/\d+/g) ?? []).map(Number);
+      if (!nums.length) continue;
+      if (o.includes("+")) { if (n >= nums[0]) return o; }
+      else if (nums.length === 1) { if (n === nums[0]) return o; }
+      else if (n >= nums[0] && n <= nums[nums.length - 1]) return o;
+    }
+  }
+  return null;
 }
 
 /* Per-category filter config (matched by keyword on slug+name): price-range
@@ -88,21 +129,31 @@ const P_HIGH: PriceRange[] = [{ label: "Under $5k", min: 0, max: 5000 }, { label
 const P_MID: PriceRange[] = [{ label: "Under $1k", min: 0, max: 1000 }, { label: "$1k–$3k", min: 1000, max: 3000 }, { label: "$3k–$6k", min: 3000, max: 6000 }, { label: "$6k+", min: 6000, max: 0 }];
 const P_LOW: PriceRange[] = [{ label: "Under $500", min: 0, max: 500 }, { label: "$500–$1.5k", min: 500, max: 1500 }, { label: "$1.5k–$3k", min: 1500, max: 3000 }, { label: "$3k+", min: 3000, max: 0 }];
 const P_TUB: PriceRange[] = [{ label: "Under $2k", min: 0, max: 2000 }, { label: "$2k–$4k", min: 2000, max: 4000 }, { label: "$4k–$6k", min: 4000, max: 6000 }, { label: "$6k+", min: 6000, max: 0 }];
+// Shared, wide year range for the vehicle/fitness filters (newest first).
+const FILTER_YEARS = ["2026", "2025", "2024", "2023", "2022", "2021", "2020", "2019", "2018", "2017", "2016", "2015"];
 
 const CAT_FILTERS: Array<{ match: RegExp; config: CatFilter }> = [
   { match: /golf ?cart/i, config: { priceRanges: P_HIGH, groups: [{ label: "Gas or electric", options: ["Gas", "Electric"] }, { label: "Seats", options: ["2-seater", "4-seater", "6-seater"] }, { label: "Style", options: ["Lifted", "Street legal", "Standard"] }] } },
-  { match: /peloton[^]*tread|tread ?mill|nordic ?track|pro ?form/i, config: { priceRanges: P_MID, groups: [{ label: "Model", options: ["Tread+", "Tread"] }, { label: "Year", options: ["2020", "2021", "2022", "2023", "2024"] }] } },
+  { match: /nordic ?track/i, config: { priceRanges: P_MID, groups: [{ label: "Model", options: ["Commercial 1750", "Commercial 2450", "Commercial 2950", "X22i", "X24", "S22i", "EXP", "T Series"] }, { label: "Year", options: FILTER_YEARS }] } },
+  { match: /pro ?form/i, config: { priceRanges: P_MID, groups: [{ label: "Model", options: ["Pro 2000", "Pro 9000", "Carbon T", "Carbon TL", "City L6", "505 CST"] }, { label: "Year", options: FILTER_YEARS }] } },
+  { match: /peloton[^]*tread/i, config: { priceRanges: P_MID, groups: [{ label: "Model", options: ["Tread+", "Tread"] }, { label: "Year", options: FILTER_YEARS }] } },
+  { match: /tread ?mill/i, config: { priceRanges: P_MID, groups: [{ label: "Brand", options: ["NordicTrack", "ProForm", "Sole", "Horizon", "Peloton", "Bowflex"] }, { label: "Feature", options: ["Folding", "Incline", "Commercial"] }, { label: "Year", options: FILTER_YEARS }] } },
   { match: /peloton[^]*row|rower|hydrow|ergatta/i, config: { priceRanges: P_LOW, groups: [{ label: "Brand", options: ["Peloton", "Hydrow", "Ergatta", "Concept2"] }] } },
-  { match: /peloton[^]*bike|spin ?bike|indoor ?bike|\bbike\b/i, config: { priceRanges: P_LOW, groups: [{ label: "Model", options: ["Bike+", "Bike"] }, { label: "Year", options: ["2019", "2020", "2021", "2022", "2023", "2024"] }] } },
+  { match: /peloton[^]*bike|spin ?bike|indoor ?bike|\bbike\b/i, config: { priceRanges: P_LOW, groups: [{ label: "Model", options: ["Bike+", "Bike"] }, { label: "Year", options: FILTER_YEARS }] } },
   { match: /swim ?spa/i, config: { priceRanges: P_HIGH, groups: [{ label: "Feature", options: ["Saltwater", "Bluetooth", "Current"] }] } },
   { match: /hot ?tub|jacuzzi|hot ?spring|\bspa\b/i, config: { priceRanges: P_TUB, groups: [{ label: "Capacity", options: ["2–3 person", "4–5 person", "6–7 person", "8+ person"] }, { label: "Water system", options: ["Saltwater", "Chlorine"] }] } },
   { match: /infrared ?sauna|sauna/i, config: { priceRanges: P_MID, groups: [{ label: "Type", options: ["Infrared", "Traditional"] }, { label: "Capacity", options: ["1 person", "2 person", "3 person", "4 person"] }] } },
   { match: /cold ?plunge|plunge|ice ?bath/i, config: { priceRanges: P_MID, groups: [{ label: "Feature", options: ["Chiller", "Filter"] }] } },
   { match: /massage ?chair/i, config: { priceRanges: P_MID, groups: [{ label: "Feature", options: ["Zero Gravity", "Heated", "Full Body"] }] } },
-  { match: /tonal|home ?gym|functional ?trainer|smith ?machine|bowflex/i, config: { priceRanges: P_MID, groups: [{ label: "Feature", options: ["Digital", "Smart", "Full Accessories"] }] } },
+  { match: /strength|squat ?rack|power ?rack|cable ?machine|functional ?trainer|smith ?machine|adjustable ?dumbbell|\brack\b|barbell|weight ?plate/i, config: { priceRanges: P_LOW, groups: [{ label: "Type", options: ["Squat Rack", "Power Rack", "Cable Machine", "Functional Trainer", "Smith Machine", "Dumbbells"] }, { label: "Feature", options: ["Adjustable", "Plate-loaded", "Selectorized", "Foldable"] }] } },
+  { match: /elliptical|cross ?trainer/i, config: { priceRanges: P_LOW, groups: [{ label: "Type", options: ["Front-drive", "Rear-drive", "Center-drive"] }, { label: "Feature", options: ["Incline", "Folding", "Commercial"] }] } },
+  { match: /recumbent|upright ?bike|exercise ?bike/i, config: { priceRanges: P_LOW, groups: [{ label: "Style", options: ["Recumbent", "Upright"] }, { label: "Feature", options: ["Magnetic", "Bluetooth", "Programs"] }] } },
+  { match: /air ?bike|assault ?bike|fan ?bike/i, config: { priceRanges: P_LOW, groups: [{ label: "Brand", options: ["Assault", "Rogue", "Schwinn", "Concept2"] }] } },
+  { match: /stair ?climber|stair ?master|stepmill|stepper/i, config: { priceRanges: P_MID, groups: [{ label: "Type", options: ["Stepmill", "Step machine"] }, { label: "Feature", options: ["Commercial", "Compact"] }] } },
+  { match: /tonal|home ?gym|bowflex/i, config: { priceRanges: P_MID, groups: [{ label: "Feature", options: ["Digital", "Smart", "Full Accessories"] }] } },
   { match: /refrigerator|\bwasher|\bdryer|dishwasher|\brange|\boven|appliance|freezer|stove/i, config: { priceRanges: P_LOW, groups: [{ label: "Fuel", options: ["Gas", "Electric"] }, { label: "Finish", options: ["Stainless", "White", "Black"] }] } },
   { match: /sofa|sectional|couch|dining|coffee ?table|\btable|\bdesk|dresser|bookshelf|furniture|recliner|lamp/i, config: { priceRanges: P_LOW, groups: [{ label: "Material", options: ["Leather", "Fabric", "Wood"] }] } },
-  { match: /\bcar\b|truck|\bsuv\b|vehicle|scooter|vespa|\batv\b|motorcycle|moped/i, config: { priceRanges: P_MID, groups: [{ label: "Year", options: ["2018", "2019", "2020", "2021", "2022", "2023", "2024"] }] } },
+  { match: /\bcar\b|truck|\bsuv\b|vehicle|scooter|vespa|\batv\b|motorcycle|moped/i, config: { priceRanges: P_MID, groups: [{ label: "Year", options: FILTER_YEARS }] } },
 ];
 
 function filterConfigFor(slug: string, name: string): CatFilter {
@@ -115,12 +166,33 @@ function attrsForCategory(slug: string, name: string): AttrGroup[] {
   return filterConfigFor(slug, name).groups;
 }
 
-export function MarketplaceApp() {
-  const [view, setView] = useState<View>("browse");
-  const [category, setCategory] = useState<CatItem | null>(null);
-  const [product, setProduct] = useState<Listing | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [infoSlug, setInfoSlug] = useState<string | null>(null);
+/** Small numeric price input with a persistent "$" prefix (filters). */
+function PriceField({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
+  return (
+    <div style={css("display:flex;align-items:center;gap:2px;width:100%;min-width:0;flex:1;border:1px solid var(--line);border-radius:9px;padding:0 10px;background:#fff;box-sizing:border-box")}>
+      <span style={css("color:var(--muted);font-size:13px;flex:0 0 auto")}>$</span>
+      <input value={value} onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, ""))} inputMode="numeric" placeholder={placeholder}
+        style={css("width:100%;min-width:0;border:none;outline:none;background:transparent;padding:8px 0 8px 3px;font-size:13px;color:var(--ink);font-family:inherit")} />
+    </div>
+  );
+}
+
+export interface InitialRoute {
+  view: View;
+  infoSlug?: string;
+  category?: CatItem;
+  product?: Listing;
+  query?: string;
+  blogSlug?: string;
+}
+
+export function MarketplaceApp({ initialRoute }: { initialRoute?: InitialRoute } = {}) {
+  const [view, setView] = useState<View>(initialRoute?.view ?? "browse");
+  const [category, setCategory] = useState<CatItem | null>(initialRoute?.category ?? null);
+  const [product, setProduct] = useState<Listing | null>(initialRoute?.product ?? null);
+  const [searchQuery, setSearchQuery] = useState(initialRoute?.query ?? "");
+  const [infoSlug, setInfoSlug] = useState<string | null>(initialRoute?.infoSlug ?? null);
+  const [blogSlug, setBlogSlug] = useState<string | null>(initialRoute?.blogSlug ?? null);
   const [videoId, setVideoId] = useState<string | null>(null);
   const [offerOpen, setOfferOpen] = useState(false);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
@@ -166,6 +238,7 @@ export function MarketplaceApp() {
     return () => clearTimeout(t);
   }, [view, cart.hydrated, cart.items]);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [locOpen, setLocOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -177,21 +250,63 @@ export function MarketplaceApp() {
   const [attrs, setAttrs] = useState<Set<string>>(new Set());
   const [authed, setAuthed] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  // Restore the real session from the httpOnly cookie (server truth). The
+  // localStorage flag is only an optimistic hint for first paint.
   useEffect(() => { try { if (localStorage.getItem("cp_authed")) setAuthed(true); } catch { /* storage unavailable */ } }, []);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/me");
+        const data = (await res.json()) as { user?: { phone?: string } | null };
+        if (!alive) return;
+        if (data.user?.phone) { setAuthed(true); try { localStorage.setItem("cp_authed", data.user.phone); } catch { /* ignore */ } }
+        else { setAuthed(false); try { localStorage.removeItem("cp_authed"); } catch { /* ignore */ } }
+      } catch { /* keep optimistic state */ }
+    })();
+    return () => { alive = false; };
+  }, []);
+  const logout = () => {
+    try { void fetch("/api/auth/logout", { method: "POST" }); } catch { /* ignore */ }
+    try { localStorage.removeItem("cp_authed"); } catch { /* ignore */ }
+    setAuthed(false);
+    setView("browse");
+  };
+  // Anyone can open the sell form; the account requirement is enforced at the
+  // END (on submit) via onRequireAuth, which runs the pending action after sign-in.
+  const goSell = () => setView("sell");
+  const postAuthRef = useRef<null | (() => void)>(null);
+  const requireAuth = (after: () => void) => { if (authed) { after(); return; } postAuthRef.current = after; setAuthOpen(true); };
+  // Always start a freshly-opened page at the top (product, category, info, etc.).
+  const mainRef = useRef<HTMLElement | null>(null);
+  useEffect(() => { try { mainRef.current?.scrollTo({ top: 0 }); } catch { if (mainRef.current) mainRef.current.scrollTop = 0; } }, [view, product, category, infoSlug]);
+
+  // Product analytics — screens, listing views, and sign-in state (Clarity++).
+  useEffect(() => { analytics.init(); }, []);
+  useEffect(() => { analytics.setScreen(view, { categorySlug: category?.slug ?? undefined, listingId: product?.id ?? undefined }); }, [view, category?.slug, product?.id]);
+  useEffect(() => { try { analytics.setUser(authed ? (localStorage.getItem("cp_authed") || "authed") : null); } catch { /* ignore */ } }, [authed]);
   const filter: FilterState = { conds, priceMin, priceMax, attrs };
   const toggleAttr = (o: string) => setAttrs((prev) => { const n = new Set(prev); if (n.has(o)) n.delete(o); else n.add(o); return n; });
 
   const notCategory = view !== "category";
   const isCategory = view === "category";
 
-  function openCategory(item: CatItem) {
+  function openCategory(item: CatItem, prefill?: { seats?: number; attrs?: string[] }) {
     setCategory(item);
-    setAttrs(new Set()); // category-specific attrs shouldn't carry across categories
+    // Category-specific attrs shouldn't carry across categories, but a search
+    // like "6 person hot tub" can pre-apply the matching capacity chip.
+    const next = new Set<string>(prefill?.attrs ?? []);
+    if (prefill?.seats != null) {
+      const opt = capacityOptionForCount(attrsForCategory(item.slug, item.name), prefill.seats);
+      if (opt) next.add(opt);
+    }
+    setAttrs(next);
     setView("category");
   }
   function openProduct(item: Listing) {
     setProduct(item);
     setView("product");
+    try { analytics.listingView(item.id, item.categorySlug ?? undefined, { title: item.title, priceCents: item.priceCents }); } catch { /* ignore */ }
   }
   function goBrowse() {
     setView("browse");
@@ -203,7 +318,11 @@ export function MarketplaceApp() {
     setInfoSlug(slug);
     setView("info");
   }
-  const showSidebar = !["account", "cart", "info", "checkout", "track", "sell"].includes(view);
+  function openBlog(slug?: string) {
+    setBlogSlug(slug ?? null);
+    setView("blog");
+  }
+  const showSidebar = !["account", "cart", "info", "checkout", "track", "sell", "blog"].includes(view);
   function toggleCond(key: string) {
     setConds((prev) => {
       const next = new Set(prev);
@@ -217,7 +336,7 @@ export function MarketplaceApp() {
     <div
       style={sx(
         ROOT_VARS,
-        "font-family:'Roobert','Inter Tight',system-ui,-apple-system,'Helvetica Neue',sans-serif;color:var(--ink);height:100dvh;width:100%;display:flex;flex-direction:column;background:var(--cream);overflow:hidden",
+        "font-family:'Roobert','Inter Tight',system-ui,-apple-system,'Helvetica Neue',sans-serif;color:var(--ink);height:100%;width:100%;display:flex;flex-direction:column;background:var(--cream);overflow:hidden",
       )}
     >
       {/* ============================ HEADER ============================ */}
@@ -226,16 +345,53 @@ export function MarketplaceApp() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={LOGO} alt="Commonplace" style={css("height:26px;width:auto;display:block")} />
         </div>
-        <div style={css("flex:0 1 380px;display:flex;align-items:center;gap:8px;background:#F1EBE1;border-radius:22px;padding:10px 16px;color:var(--muted)")}>
-          <Search />
-          <input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && searchQuery.trim()) setView("search"); }}
-            onFocus={() => { if (view !== "search") setView("search"); }}
-            placeholder="Search Commonplace"
-            style={css("flex:1;min-width:0;border:none;outline:none;background:transparent;font-size:14px;color:var(--ink);font-family:inherit")}
-          />
+        <div style={css("position:relative;flex:0 1 380px")}>
+          <div style={css("display:flex;align-items:center;gap:8px;background:#F1EBE1;border-radius:22px;padding:10px 16px;color:var(--muted)")}>
+            <Search />
+            <input
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setSearchOpen(true); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && searchQuery.trim()) {
+                  // Always land on the search page — even an exact category match
+                  // goes here so the "confirm category" pop-up appears and the
+                  // shopper never gets dropped into the wrong category by mistake.
+                  setSearchOpen(false);
+                  setView("search");
+                }
+                if (e.key === "Escape") setSearchOpen(false);
+              }}
+              onFocus={() => setSearchOpen(true)}
+              onBlur={() => setTimeout(() => setSearchOpen(false), 170)}
+              placeholder="Search Commonplace"
+              style={css("flex:1;min-width:0;border:none;outline:none;background:transparent;font-size:14px;color:var(--ink);font-family:inherit")}
+            />
+          </div>
+          {searchOpen && searchQuery.trim().length > 0 && (() => {
+            const q = searchQuery.trim().toLowerCase();
+            let cats = ALL_CATS.filter((c) => c.name.toLowerCase().includes(q) || (c.name.toLowerCase().length > 3 && q.includes(c.name.toLowerCase()))).slice(0, 6);
+            // Typo tolerance: if nothing matched by substring, offer the closest
+            // category ("glf cart" → Golf Carts, "ploton" → Peloton).
+            const fuzzy = cats.length === 0 ? fuzzyCategoryMatch(q) : null;
+            if (fuzzy) cats = [fuzzy.cat];
+            return (
+              <div style={css("position:absolute;top:calc(100% + 8px);left:0;right:0;background:var(--paper);border:1px solid var(--line);border-radius:14px;box-shadow:0 16px 40px rgba(60,10,35,.16);padding:6px;z-index:80")}>
+                {cats.map((c) => (
+                  <Hoverable key={c.slug} as="div" onMouseDown={() => { setSearchOpen(false); openCategory({ name: c.name, slug: c.slug }); }} styles="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;cursor:pointer;font-size:14px;color:var(--ink)" hover="background:var(--putty)">
+                    <span style={css("width:26px;height:26px;flex:0 0 auto;border-radius:7px;background:var(--tint);color:var(--maroon);display:flex;align-items:center;justify-content:center")}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M4 9h16l-1-4.5H5L4 9Z" /><path d="M5 9v10.5h14V9" /></svg>
+                    </span>
+                    <span style={css("flex:1;font-weight:600")}>{c.name}</span>
+                    <span style={css("font-size:11.5px;color:var(--muted)")}>Explore →</span>
+                  </Hoverable>
+                ))}
+                <Hoverable as="div" onMouseDown={() => { setSearchOpen(false); setView("search"); }} styles={sx("display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;cursor:pointer;font-size:14px;color:var(--ink)", cats.length > 0 && "border-top:1px solid var(--line);margin-top:2px")} hover="background:var(--putty)">
+                  <span style={css("width:26px;height:26px;flex:0 0 auto;border-radius:7px;background:var(--blueBg);color:var(--blueInk);display:flex;align-items:center;justify-content:center")}><Search /></span>
+                  <span style={css("flex:1")}>Search “<b>{searchQuery.trim()}</b>” in all listings</span>
+                </Hoverable>
+              </div>
+            );
+          })()}
         </div>
         <div style={css("display:flex;align-items:center;gap:20px;font-size:13px;font-weight:600;color:var(--muted);flex:0 0 auto;white-space:nowrap")}>
           <Hoverable onClick={() => openInfo("about")} styles="cursor:pointer" hover="color:var(--ink)">About Us</Hoverable>
@@ -266,7 +422,7 @@ export function MarketplaceApp() {
           </div>
         </div>
         <div style={css("flex:1")} />
-        <div onClick={() => setView("sell")} style={css("font-size:14px;font-weight:700;color:var(--maroon);cursor:pointer;padding:0 6px;white-space:nowrap;flex:0 0 auto")}>Sell an item</div>
+        <div onClick={goSell} style={css("font-size:14px;font-weight:700;color:var(--maroon);cursor:pointer;padding:0 6px;white-space:nowrap;flex:0 0 auto")}>Sell an item</div>
         <Hoverable title="Cart" onClick={() => setView("cart")} styles="position:relative;width:40px;height:40px;flex:0 0 auto;border-radius:50%;background:var(--blueBg);display:flex;align-items:center;justify-content:center;cursor:pointer" hover="filter:brightness(.96)">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--blueInk)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <circle cx="9" cy="21" r="1.4" />
@@ -312,7 +468,7 @@ export function MarketplaceApp() {
           </div>
 
           {/* Create listing */}
-          <button onClick={() => setView("sell")} style={css("width:100%;background:var(--fbbtn);color:var(--fbblue);border:none;border-radius:8px;padding:12px;font-size:14.5px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px")}>
+          <button onClick={goSell} style={css("width:100%;background:var(--fbbtn);color:var(--fbblue);border:none;border-radius:8px;padding:12px;font-size:14.5px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px")}>
             <Plus />Create new listing
           </button>
 
@@ -334,11 +490,38 @@ export function MarketplaceApp() {
                       </Hoverable>
                       {open && (
                         <div style={css("padding:0 10px 9px;display:flex;flex-direction:column;gap:1px")}>
-                          {g.items.map((it) => (
-                            <Hoverable key={it.slug} onClick={() => openCategory(it)} styles="display:flex;align-items:center;padding:7px 10px 7px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;transition:background .14s" hover="background:var(--putty)">
-                              {it.name}
-                            </Hoverable>
-                          ))}
+                          {g.items.map((it) => {
+                            const hasKids = !!(it.children && it.children.length);
+                            const subKey = g.name + ">" + it.name;
+                            const subOpen = !!openGroups[subKey];
+                            if (!hasKids) {
+                              return (
+                                <Hoverable key={it.slug} onClick={() => openCategory(it)} styles="display:flex;align-items:center;padding:7px 10px 7px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;transition:background .14s" hover="background:var(--putty)">
+                                  {it.name}
+                                </Hoverable>
+                              );
+                            }
+                            return (
+                              <div key={it.slug}>
+                                <Hoverable onClick={() => setOpenGroups((p) => ({ ...p, [subKey]: !p[subKey] }))} styles="display:flex;align-items:center;padding:7px 10px 7px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;transition:background .14s" hover="background:var(--putty)">
+                                  <span style={css("flex:1")}>{it.name}</span>
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth={2.4} style={sx("transition:transform .2s", { transform: subOpen ? "rotate(180deg)" : "none" })}><path d="m6 9 6 6 6-6" /></svg>
+                                </Hoverable>
+                                {subOpen && (
+                                  <div style={css("display:flex;flex-direction:column;gap:1px")}>
+                                    <Hoverable onClick={() => openCategory(it)} styles="display:flex;align-items:center;padding:6px 10px 6px 24px;border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--maroon);transition:background .14s" hover="background:var(--putty)">
+                                      All {it.name}
+                                    </Hoverable>
+                                    {it.children!.map((c) => (
+                                      <Hoverable key={c.slug} onClick={() => openCategory(c)} styles="display:flex;align-items:center;padding:6px 10px 6px 24px;border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:500;color:var(--muted);transition:background .14s" hover="background:var(--putty)">
+                                        {c.name}
+                                      </Hoverable>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -351,9 +534,9 @@ export function MarketplaceApp() {
                 <div style={css("font-size:15px;font-weight:700;margin-bottom:10px")}>Filters</div>
                 <div style={css("font-size:12px;font-weight:700;color:var(--muted);margin-bottom:7px")}>Price</div>
                 <div style={css("display:flex;align-items:center;gap:8px;margin-bottom:13px")}>
-                  <input value={priceMin} onChange={(e) => setPriceMin(e.target.value)} inputMode="numeric" placeholder="Min $" style={css("width:100%;min-width:0;flex:1;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;outline:none;background:#fff")} />
+                  <PriceField value={priceMin} onChange={setPriceMin} placeholder="Min" />
                   <span style={css("color:var(--muted);font-size:13px")}>–</span>
-                  <input value={priceMax} onChange={(e) => setPriceMax(e.target.value)} inputMode="numeric" placeholder="Max $" style={css("width:100%;min-width:0;flex:1;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;outline:none;background:#fff")} />
+                  <PriceField value={priceMax} onChange={setPriceMax} placeholder="Max" />
                 </div>
                 <div style={css("font-size:12px;font-weight:700;color:var(--muted);margin-bottom:7px")}>Condition</div>
                 <div style={css("display:flex;flex-wrap:wrap;gap:6px")}>
@@ -443,7 +626,10 @@ export function MarketplaceApp() {
                 <div style={css("display:flex;flex-direction:column;gap:6px")}>
                   {ARTICLES.map((a) => (
                     <Hoverable key={a.name} as="a" href={a.url} target="_blank" styles="display:flex;align-items:center;gap:11px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;cursor:pointer;transition:box-shadow .15s" hover="box-shadow:0 6px 16px rgba(60,10,35,.1)">
-                      <span style={sx("width:40px;height:40px;flex:0 0 auto;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;letter-spacing:-.02em;text-align:center;padding:2px;line-height:1.05", { background: a.logoBg, color: a.logoFg })}>{a.logoText}</span>
+                      <span style={css("width:40px;height:40px;flex:0 0 auto;border-radius:9px;background:var(--putty);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden")}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={favicon(a.domain)} alt={a.name} width={22} height={22} loading="lazy" style={css("width:22px;height:22px;object-fit:contain")} />
+                      </span>
                       <span style={css("min-width:0;flex:1")}>
                         <span style={sx("display:block;font-size:13.5px;font-weight:800;line-height:1.15;letter-spacing:-.2px", { fontFamily: a.font })}>{a.name}</span>
                         <span style={css("display:block;font-size:11px;color:var(--muted);line-height:1.3;margin-top:2px")}>{a.quote}</span>
@@ -507,23 +693,24 @@ export function MarketplaceApp() {
         )}
 
         {/* ============================ MAIN ============================ */}
-        <main style={css(showSidebar ? "flex:1;overflow-y:auto;padding:16px 12px 56px 8px" : "flex:1;overflow-y:auto;padding:0")}>
+        <main ref={mainRef} style={css(showSidebar ? "flex:1;overflow-y:auto;padding:16px 12px 56px 8px" : "flex:1;overflow-y:auto;padding:0")}>
           <ErrorBoundary onReset={goBrowse}>
             {view === "browse" && <BrowseView locCity={locCity} onOpenProduct={openProduct} filter={filter} />}
             {view === "category" && category && <CategoryView catName={category.name} categorySlug={category.slug} onOpenProduct={openProduct} filter={filter} />}
             {view === "buying" && <BuyingDashboard onBrowse={goBrowse} />}
-            {view === "selling" && <SellingDashboard onBrowse={goBrowse} onNew={() => setView("sell")} />}
+            {view === "selling" && <SellingDashboard onBrowse={goBrowse} onNew={goSell} />}
             {view === "product" && product && <ProductPage item={product} onBack={goBrowse} onOpenCategory={(slug, name) => openCategory({ name, slug })} onMakeOffer={() => setOfferOpen(true)} onOpenProduct={openProduct} onRequestItem={() => openRequest(product.title)} onNotify={() => openNotify(product.title)} onPlayVideo={(id) => setVideoId(id)} />}
-            {view === "search" && <SearchPage initialQuery={searchQuery} onOpenProduct={openProduct} />}
-            {view === "account" && <AccountPage onBack={goBrowse} />}
+            {view === "search" && <SearchPage initialQuery={searchQuery} onOpenProduct={openProduct} onOpenCategory={(slug, name, prefill) => openCategory({ name, slug }, prefill)} />}
+            {view === "account" && <AccountPage onBack={goBrowse} onLogout={logout} />}
             {view === "cart" && <CartPage onBrowse={goBrowse} onCheckout={() => setView("checkout")} onOpenProduct={openProduct} deliverTo={locCity} onChangeAddress={() => setLocOpen(true)} onRequestItem={() => openRequest(cart.items[0]?.listing.title)} />}
-            {view === "sell" && <SellPage onDone={goBrowse} />}
+            {view === "sell" && <SellPage onDone={goBrowse} authed={authed} onRequireAuth={requireAuth} />}
             {view === "checkout" && <CheckoutPage onBack={() => setView("cart")} onBrowse={goBrowse} onViewOrder={(id) => { setActiveOrderId(id); setView("track"); }} />}
             {view === "track" && <OrderTracking orderId={activeOrderId ?? undefined} onBack={goBrowse} onBrowse={goBrowse} />}
+            {view === "blog" && <BlogView initialSlug={blogSlug ?? undefined} />}
             {view === "info" && infoSlug && <InfoView slug={infoSlug} />}
           </ErrorBoundary>
           {!["cart", "checkout", "track", "browse"].includes(view) && (
-            <Footer onBrowse={goBrowse} onSell={() => setView("sell")} onTrack={() => setView("track")} onInfo={openInfo} onCategory={(slug, name) => openCategory({ name, slug })} />
+            <Footer onBrowse={goBrowse} onSell={goSell} onTrack={() => setView("track")} onInfo={openInfo} onCategory={(slug, name) => openCategory({ name, slug })} onBlog={() => openBlog()} />
           )}
         </main>
       </div>
@@ -535,12 +722,12 @@ export function MarketplaceApp() {
       <SideCart open={cartOpen} onClose={() => setCartOpen(false)} onCheckout={() => { setCartOpen(false); setView("checkout"); }} />
 
       {videoId && <VideoLightbox id={videoId} onClose={() => setVideoId(null)} />}
-      <TawkWidget />
+      <TawkWidget onSell={goSell} onSearch={() => setView("search")} onTrack={() => setView("track")} />
       <CartExitPopup enabled={cart.count > 0} onClose={() => {}} />
-      <AddonPopup open={addonOpen} categorySlugs={cart.items.filter((it) => !isAddonListing(it.listing)).map((it) => `${it.listing.categorySlug ?? ""} ${it.listing.categoryName ?? ""}`)} onClose={() => setAddonOpen(false)} />
+      <AddonPopup open={addonOpen} categorySlugs={cart.items.filter((it) => !isAddonListing(it.listing)).map((it) => `${it.listing.categorySlug ?? ""} ${it.listing.categoryName ?? ""}`)} basisCents={Math.max(0, ...cart.items.filter((it) => !isAddonListing(it.listing)).map((it) => it.listing.priceCents))} onClose={() => setAddonOpen(false)} />
       <RequestItemModal open={requestOpen} itemTitle={requestTitle || undefined} onClose={() => setRequestOpen(false)} />
       <NotifyMePopup open={notifyOpen} itemTitle={notifyTitle || undefined} onClose={() => setNotifyOpen(false)} />
-      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} onAuthed={(phone) => { setAuthed(true); try { localStorage.setItem("cp_authed", phone); } catch { /* ignore */ } setAuthOpen(false); setView("account"); }} />
+      <AuthModal open={authOpen} onClose={() => { setAuthOpen(false); postAuthRef.current = null; }} onAuthed={(phone) => { setAuthed(true); try { localStorage.setItem("cp_authed", phone); } catch { /* ignore */ } setAuthOpen(false); const after = postAuthRef.current; postAuthRef.current = null; if (after) after(); else setView("account"); }} />
     </div>
   );
 }
@@ -569,11 +756,11 @@ function NavRow({ active, onClick, label, icon, chevron, border, accent = "var(-
 function ProductCard({ it, tint = "#EDE4D6", tint2 = "#E5DACA" }: { it: Listing; tint?: string; tint2?: string }) {
   const img = it.images[0];
   return (
-    <Hoverable styles="transition:box-shadow .2s ease,border-color .2s ease;background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden;cursor:pointer;animation:pop .3s ease both;box-shadow:0 3px 10px rgba(60,10,35,.05)" hover="box-shadow:0 18px 38px rgba(60,10,35,.22);border-color:#d9b7c2">
+    <Hoverable styles="transition:box-shadow .2s ease,border-color .2s ease;background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden;cursor:pointer;animation:pop .3s ease both;box-shadow:0 3px 10px rgba(60,10,35,.05)" hover="box-shadow:0 18px 38px rgba(60,10,35,.22);border:1px solid #d9b7c2">
       <div style={sx("position:relative;aspect-ratio:4/3;overflow:hidden", { background: `repeating-linear-gradient(135deg,${tint} 0 15px,${tint2} 15px 30px)` })}>
         {img ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={img} alt={it.title} loading="lazy" style={css("position:absolute;inset:0;width:100%;height:100%;object-fit:cover")} />
+          <img src={img} alt={it.title} loading="lazy" style={css("position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block")} />
         ) : (
           <div style={css("position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px")}>
             <span style={css("font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;letter-spacing:.12em;color:#9a8c78;text-align:center;text-transform:uppercase")}>{it.categoryName}</span>
@@ -588,11 +775,10 @@ function ProductCard({ it, tint = "#EDE4D6", tint2 = "#E5DACA" }: { it: Listing;
       </div>
       <div style={css("padding:10px 11px 11px")}>
         <div style={css("font-family:'Reckless','Newsreader',serif;font-size:13px;font-weight:500;line-height:1.28;height:33px;overflow:hidden;text-wrap:pretty")}>{it.title}</div>
-        {it.location && (
-          <div style={css("display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--muted);margin-top:5px")}>
-            <Pin size={12} />{it.location}
-          </div>
-        )}
+        {/* Location row always reserves height so every card is identical in size. */}
+        <div style={css("display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--muted);margin-top:5px;height:15px;overflow:hidden")}>
+          {it.location ? <><Pin size={12} />{it.location}</> : null}
+        </div>
         <div style={css("display:flex;align-items:baseline;gap:7px;margin-top:5px")}>
           <span style={css("font-size:15px;font-weight:800;letter-spacing:-.3px")}>{formatPrice(it.priceCents)}</span>
           {it.retailCents ? <span style={css("font-size:11px;color:var(--muted);text-decoration:line-through")}>{formatPrice(it.retailCents)}</span> : null}
@@ -654,34 +840,63 @@ function BrowseView({ locCity, onOpenProduct, filter }: { locCity: string; onOpe
   const sentinel = useRef<HTMLDivElement>(null);
   const PER = 24;
 
-  // Initial load / reset when filter, sort, or city changes.
+  // Initial load / reset when the group filter, sort, or city changes.
+  // "" (All) → normal paginated feed. A group name → aggregate every child
+  // category in that group into one merged view (matches the design's pills).
   useEffect(() => {
     let alive = true;
     setLoading(true); setPage(1); setHasMore(true);
-    fetchListings({ perPage: PER, page: 1, category: chip || undefined, orderby: sort })
-      .then((d) => {
-        if (!alive) return;
-        setItems(d.items);
-        setHasMore(d.items.length >= PER && (d.totalPages ? 1 < d.totalPages : true));
-        setLoading(false);
-      })
-      .catch(() => { if (alive) { setItems([]); setLoading(false); setHasMore(false); } });
+    if (!chip) {
+      // Diverse "Today's picks": pull from each big group and round-robin mix.
+      const PER_CAT = 6;
+      Promise.all(TODAYS_PICKS_SLUGS.map((s) => fetchListings({ category: s, perPage: PER_CAT, page: 1, orderby: sort }).catch(() => ({ items: [], total: 0, totalPages: 0, page: 1 }))))
+        .then((results) => {
+          if (!alive) return;
+          const merged = roundRobin(results.map((r) => r.items));
+          // Fallback to the plain feed if the curated mix came back empty.
+          if (merged.length === 0) {
+            fetchListings({ perPage: PER, page: 1, orderby: sort })
+              .then((d) => { if (alive) { setItems(d.items); setHasMore(d.items.length >= PER); setLoading(false); } })
+              .catch(() => { if (alive) { setItems([]); setLoading(false); setHasMore(false); } });
+            return;
+          }
+          setItems(merged);
+          setHasMore(results.some((r) => r.items.length >= PER_CAT));
+          setLoading(false);
+        })
+        .catch(() => { if (alive) { setItems([]); setLoading(false); setHasMore(false); } });
+    } else {
+      const slugs = slugsForGroup(chip);
+      Promise.all(slugs.map((s) => fetchListings({ category: s, perPage: 12, orderby: sort }).catch(() => ({ items: [], total: 0, totalPages: 0, page: 1 }))))
+        .then((results) => {
+          if (!alive) return;
+          const seen = new Set<number>();
+          const merged: Listing[] = [];
+          for (const r of results) for (const it of r.items) if (!seen.has(it.id)) { seen.add(it.id); merged.push(it); }
+          setItems(merged);
+          setHasMore(false); // group view is fully aggregated, no infinite scroll
+          setLoading(false);
+        })
+        .catch(() => { if (alive) { setItems([]); setLoading(false); setHasMore(false); } });
+    }
     return () => { alive = false; };
   }, [chip, sort, locCity]);
 
   // Append the next page (infinite scroll).
   const loadMore = useCallback(() => {
-    if (loadingMore || loading || !hasMore) return;
+    if (loadingMore || loading || !hasMore || chip) return; // infinite scroll only on the All feed
     setLoadingMore(true);
     const next = page + 1;
-    fetchListings({ perPage: PER, page: next, category: chip || undefined, orderby: sort })
-      .then((d) => {
+    const PER_CAT = 6;
+    Promise.all(TODAYS_PICKS_SLUGS.map((s) => fetchListings({ category: s, perPage: PER_CAT, page: next, orderby: sort }).catch(() => ({ items: [], total: 0, totalPages: 0, page: next }))))
+      .then((results) => {
+        const fresh = roundRobin(results.map((r) => r.items));
         setItems((prev) => {
           const seen = new Set(prev.map((x) => x.id));
-          return [...prev, ...d.items.filter((x) => !seen.has(x.id))];
+          return [...prev, ...fresh.filter((x) => !seen.has(x.id))];
         });
         setPage(next);
-        setHasMore(d.items.length >= PER && (d.totalPages ? next < d.totalPages : true));
+        setHasMore(results.some((r) => r.items.length >= PER_CAT));
         setLoadingMore(false);
       })
       .catch(() => setLoadingMore(false));
@@ -708,12 +923,12 @@ function BrowseView({ locCity, onOpenProduct, filter }: { locCity: string; onOpe
 
   return (
     <div>
-      <div style={css("display:flex;align-items:center;gap:13px;background:#F9AEB7;border:1px solid #f2939e;border-radius:12px;padding:12px 16px;margin-bottom:18px")}>
-        <span style={css("width:36px;height:36px;flex:0 0 auto;border-radius:50%;background:var(--maroon);color:#fff;display:flex;align-items:center;justify-content:center")}>
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="1" y="6" width="14" height="10" rx="1.5" /><path d="M15 9h4l3 3.5V16h-7z" /><circle cx="6" cy="17.5" r="1.8" /><circle cx="18" cy="17.5" r="1.8" /></svg>
+      <div style={css("display:flex;align-items:center;gap:13px;background:var(--greenBg);border:1px solid #bfe0cd;border-radius:12px;padding:12px 16px;margin-bottom:18px")}>
+        <span style={css("width:30px;height:30px;flex:0 0 auto;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center")}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}><rect x="1" y="6" width="14" height="10" rx="1.5" /><path d="M15 9h4l3 3.5V16h-7z" /><circle cx="6" cy="17.5" r="1.8" /><circle cx="18" cy="17.5" r="1.8" /></svg>
         </span>
-        <div style={css("font-size:13.5px;line-height:1.45")}>
-          <b>Free delivery within 100 miles.</b> We ship most items up to 1,500 miles and vehicles anywhere — inspected at pickup, delivered white-glove, and you pay only after testing it at home.
+        <div style={css("font-size:15px;line-height:1.45;color:#1f5c3d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0")}>
+          <b>Free delivery within 100 miles.</b> Full white-glove delivery &amp; install, inspected at pickup, and just <b>$1 down</b> — you pay the rest only after testing it at home.
         </div>
       </div>
       <div style={css("display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px")}>
@@ -724,14 +939,15 @@ function BrowseView({ locCity, onOpenProduct, filter }: { locCity: string; onOpe
         <SortSelect value={sort} onChange={setSort} />
       </div>
       <div style={css("display:flex;gap:9px;flex-wrap:wrap;margin-bottom:22px")}>
-        {BROWSE_CHIPS.map((c) => {
-          const active = chip === c.slug;
+        {["All", ...CAT_GROUPS.map((g) => g.name)].map((label) => {
+          const value = label === "All" ? "" : label;
+          const active = chip === value;
           return (
-            <Hoverable key={c.label} onClick={() => setChip(c.slug)}
-              styles={sx("transition:box-shadow .16s ease;padding:9px 16px;border-radius:20px;font-size:13.5px;font-weight:700;cursor:pointer",
-                active ? { border: "1px solid var(--maroon)", background: "var(--maroon)", color: "#fff" } : { border: "1px solid var(--line)", background: "var(--paper)", color: "var(--ink)" })}
+            <Hoverable key={label} onClick={() => setChip(value)}
+              styles={sx("transition:box-shadow .16s ease;padding:6px 17px;border-radius:20px;font-size:13.5px;font-weight:600;cursor:pointer",
+                active ? { border: "1px solid var(--blueInk)", background: "var(--blueInk)", color: "#fff" } : { border: "1px solid var(--line)", background: "var(--paper)", color: "var(--ink)" })}
               hover="box-shadow:0 6px 16px rgba(60,10,35,.13)">
-              {c.label}
+              {label}
             </Hoverable>
           );
         })}
@@ -767,9 +983,44 @@ const CATEGORY_CHILDREN: Record<string, string[]> = {
   vehicles: ["cars", "golf-carts", "scooters", "atv", "rv-motorhome", "motorcycles", "dirt-bike", "jet-skis", "mini-moke", "camper-vans", "lawn-mower", "street-rod"],
   // Treadmills page also surfaces Peloton Tread / Tread+ and other tread brands.
   treadmills: ["treadmills", "peloton-tread", "peloton-tread-plus", "nordictrack-treadmill", "proform-treadmill", "bowflex-treadclimber"],
-  // Rowers page surfaces Peloton Row + Hydrow.
-  rower: ["rower", "peloton-row", "hydrow-pro-rowing-machine", "ergatta-rower"],
+  // Rowers page surfaces Peloton Row + Hydrow + Concept2 + Ergatta.
+  rower: ["rower", "peloton-row", "hydrow-pro-rowing-machine", "concept2", "ergatta", "ergatta-rower"],
+  // Peloton page aggregates every Peloton machine.
+  peloton: ["peloton-bike-2nd-gen", "peloton-bike-plus", "peloton-tread", "peloton-tread-plus", "peloton-row"],
+  // Strength page aggregates racks, cable machines, trainers, dumbbells.
+  strength: ["strength", "squat-rack", "power-rack", "cable-machine", "functional-trainer", "smith-machine", "adjustable-dumbbells", "home-gym", "bowflex"],
 };
+
+/* Every child slug under a top-level GROUP (Fitness/Wellness/…), for the browse
+   chips which filter by parent group exactly like the design. */
+function slugsForGroup(name: string): string[] {
+  const g = CAT_GROUPS.find((x) => x.name === name);
+  if (!g) return [];
+  return g.items.flatMap((it) => (it.children && it.children.length ? [it.slug, ...it.children.map((c) => c.slug)] : [it.slug]));
+}
+
+/* "Today's picks" is a curated, diverse homepage feed — two representative
+   categories from each of the five big groups, round-robin interleaved so the
+   grid always mixes Vehicles / Furniture / Appliances / Wellness / Fitness. */
+const TODAYS_PICKS_SLUGS = [
+  "peloton-bike-2nd-gen", "treadmills",     // Fitness
+  "hot-tubs", "sauna",                      // Wellness
+  "refrigerators", "washer",                // Appliances
+  "sofas", "dining-tables",                 // Furniture
+  "golf-carts", "cars",                     // Vehicles
+];
+function roundRobin(lists: Listing[][]): Listing[] {
+  const out: Listing[] = [];
+  const seen = new Set<number>();
+  const max = lists.reduce((m, l) => Math.max(m, l.length), 0);
+  for (let i = 0; i < max; i++) {
+    for (const l of lists) {
+      const it = l[i];
+      if (it && !seen.has(it.id)) { seen.add(it.id); out.push(it); }
+    }
+  }
+  return out;
+}
 
 /* ------------------------------- Category view ------------------------------- */
 function CategoryView({ catName, categorySlug, onOpenProduct, filter }: { catName: string; categorySlug: string; onOpenProduct: (it: Listing) => void; filter: FilterState }) {
@@ -807,30 +1058,32 @@ function CategoryView({ catName, categorySlug, onOpenProduct, filter }: { catNam
     return () => { alive = false; };
   }, [categorySlug, sort]);
 
+  const shown = items.filter((it) => matchesFilter(it, filter));
+
   return (
     <div>
       <div style={css("display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:16px")}>
         <div>
-          <div style={css("font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--blueInk);font-weight:700")}>{catName}</div>
-          <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:34px;font-weight:500;letter-spacing:-.4px;line-height:1.1")}>Every {catName} we have</h2>
+          <div style={css("font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--blueInk);font-weight:700")}>Category</div>
+          <h2 style={css("font-family:'Reckless','Newsreader',serif;font-size:34px;font-weight:500;letter-spacing:-.4px;line-height:1.1")}>{catName}</h2>
         </div>
         <div style={css("display:flex;align-items:center;gap:16px")}>
           <div style={css("font-size:15px;color:var(--muted)")}>
-            <b style={css("color:var(--blueInk);font-size:24px;font-family:'Reckless','Newsreader',serif;font-weight:600")}>{loading ? "…" : items.length}</b> of {total.toLocaleString()} match
+            <b style={css("color:var(--blueInk);font-size:24px;font-family:'Reckless','Newsreader',serif;font-weight:600")}>{loading ? "…" : shown.length}</b> of {total.toLocaleString()} match
           </div>
           <SortSelect value={sort} onChange={setSort} />
         </div>
       </div>
       {loading ? (
         <div style={css(GRID)}>{Array.from({ length: 15 }).map((_, i) => (<CardSkeleton key={i} />))}</div>
-      ) : items.length > 0 ? (
+      ) : shown.length > 0 ? (
         <div style={css(GRID)}>
-          {items.filter((it) => matchesFilter(it, filter)).map((it) => (
+          {shown.map((it) => (
             <div key={it.id} onClick={() => onOpenProduct(it)}><ProductCard it={it} tint="#efe7dc" tint2="#e7dccc" /></div>
           ))}
         </div>
       ) : (
-        <EmptyState text={`No ${catName.toLowerCase()} in stock right now — check back soon.`} />
+        <EmptyState text={`No ${catName.toLowerCase()} match these filters right now — try clearing a filter.`} />
       )}
     </div>
   );
@@ -890,7 +1143,7 @@ function CreateModal({ onClose }: { onClose: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
-  const matched = CAT_GROUPS.flatMap((g) => g.items).find(
+  const matched = ALL_CATS.find(
     (i) => i.name.toLowerCase() === catName.trim().toLowerCase(),
   );
   const spec = resolveSellSpec(matched?.slug);
@@ -1002,11 +1255,13 @@ function CreateModal({ onClose }: { onClose: () => void }) {
           {/* Category — optional dropdown, never a gate */}
           <div>
             <div style={css("font-size:12.5px;font-weight:700;margin-bottom:6px")}>Category <span style={css("color:var(--muted);font-weight:500")}>(optional — helps us price &amp; inspect it)</span></div>
-            <select value={matched?.slug ?? ""} onChange={(e) => { const it = CAT_GROUPS.flatMap((g) => g.items).find((i) => i.slug === e.target.value); setCatName(it?.name ?? ""); }} style={sx(FIELD_INPUT, "cursor:pointer")}>
+            <select value={matched?.slug ?? ""} onChange={(e) => { const it = ALL_CATS.find((i) => i.slug === e.target.value); setCatName(it?.name ?? ""); }} style={sx(FIELD_INPUT, "cursor:pointer")}>
               <option value="">Select a category (optional)</option>
               {CAT_GROUPS.map((g) => (
                 <optgroup key={g.name} label={g.name}>
-                  {g.items.map((it) => (<option key={it.slug} value={it.slug}>{it.name}</option>))}
+                  {g.items.flatMap((it) => it.children && it.children.length
+                    ? it.children.map((c) => (<option key={c.slug} value={c.slug}>{it.name} › {c.name}</option>))
+                    : [<option key={it.slug} value={it.slug}>{it.name}</option>])}
                 </optgroup>
               ))}
             </select>
